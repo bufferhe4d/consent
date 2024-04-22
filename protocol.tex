@@ -33,7 +33,7 @@ We define the interfaces as follows and depict the flow of the procedures in Fig
 \end{itemize}
 
 \begin{figure*}[h!]
-\scalebox{.85}{
+\scalebox{.85}{\vbox{%
 \pseudocodeblock[xshift=-60pt] 
 {
  \idm(\sk_\idm)  \<\< \client  \<\< \signserv(\pk_\idm, \dict)\pclb
@@ -57,7 +57,7 @@ We define the interfaces as follows and depict the flow of the procedures in Fig
   % \<\<  \<\< \consent \gets \mathsf{Reconstruct}(\{[\consent]_i\}_{i\in [n]})\\
   \<\<  \<\< \mathsf{Verify}(\pk_\idm, \pseudo, att, \consent)\overset{?}{=} 1\\  
 }
-}
+}}
 \caption{Consent Protocol}
 \label{prot:interface_simple}
 \end{figure*}
@@ -81,7 +81,7 @@ We say that a \primitive is secure under $\cuf_\idm$ if for any $\ppt$ adversary
 \end{align*}
 
 \begin{figure*}
-\scalebox{.9}{
+\scalebox{.9}{\vbox{%
 \begin{pchstack}[center, space=0.2cm, boxed]
     \begin{pcvstack}
     
@@ -145,7 +145,7 @@ We say that a \primitive is secure under $\cuf_\idm$ if for any $\ppt$ adversary
     }
     \end{pcvstack}
     \end{pchstack}
-}
+}}
 \caption{$\cuf_\idm$ Game}
 \label{game:cuf_idm}
 \end{figure*}
@@ -312,7 +312,7 @@ See Fig. \ref{prot:construction_simple}.
         \end{align*}
 
 \begin{figure*}
-\scalebox{.9}{
+\scalebox{.9}{\vbox{%
 \begin{pchstack}[center, space=0.2cm, boxed]
     \begin{pcvstack}
     \procedure[linenumbering]{$\mathsf{G1}(\adversary{A, D})$}{
@@ -365,7 +365,7 @@ See Fig. \ref{prot:construction_simple}.
     }
     \end{pcvstack}
     \end{pchstack}
-}
+}}
 \caption{$\cuf_\idm$ \textsf{G1}}
 \label{game:cuf_idmg1}
 \end{figure*}
@@ -376,7 +376,7 @@ See Fig. \ref{prot:construction_simple}.
         \end{align*}
 
     \begin{figure*}
-\scalebox{.9}{
+\scalebox{.9}{\vbox{%
 \begin{pchstack}[center, space=0.2cm, boxed]
     \begin{pcvstack}
     \procedure[linenumbering]{$\mathsf{G2}(\adversary{A, D})$}{
@@ -425,7 +425,7 @@ See Fig. \ref{prot:construction_simple}.
     }
     \end{pcvstack}
     \end{pchstack}
-}
+}}
 \caption{$\cuf_\idm$ \textsf{G2}}
 \label{game:cuf_idmg2}
 \end{figure*}
@@ -436,7 +436,7 @@ See Fig. \ref{prot:construction_simple}.
         \end{align*}
 
     \begin{figure*}
-\scalebox{.9}{
+\scalebox{.9}{\vbox{%
 \begin{pchstack}[center, space=0.2cm, boxed]
     \begin{pcvstack}
     \procedure[linenumbering]{$\mathsf{G3}(\adversary{A, D})$}{
@@ -474,7 +474,7 @@ See Fig. \ref{prot:construction_simple}.
     }
     \end{pcvstack}
     \end{pchstack}
-}
+}}
 \caption{$\cuf_\idm$ \textsf{G3}}
 \label{game:cuf_idmg3}
 \end{figure*}
@@ -492,7 +492,7 @@ See Fig. \ref{prot:construction_simple}.
         
 
     \begin{figure*}
-\scalebox{.9}{
+\scalebox{.9}{\vbox{%
 \begin{pchstack}[center, space=0.2cm, boxed]
     \begin{pcvstack}
     \procedure[linenumbering]{$\mathsf{G4}(\adversary{A, D})$}{
@@ -536,7 +536,7 @@ See Fig. \ref{prot:construction_simple}.
     }
     \end{pcvstack}
     \end{pchstack}
-}
+}}
 \caption{$\cuf_\idm$ \textsf{G4}}
 \label{game:cuf_idmg3}
 \end{figure*}
@@ -551,7 +551,7 @@ See Fig. \ref{prot:construction_simple}.
 %We remove the $\mathsf{OOrder}$ oracle. In $\mathsf{OOrder}$to forge a valid consent for $\login^*, \pseudo^*$. The probability of guessing $\pseudo^*$, is $\frac{1}{2^{\mathcal{D}_{min}}}$. Moreover, if $\login \neq \login^*$ and $\login \in \dict$ the resulting $\consent$ can be directly simulated by the adversary since it is equal to $\agentsecret\cdot\order$ for some $s_A$ known by the adversary (since each enrollment for $\login \neq \login^*$ is done using \textsf{OCorruptEnroll}).
 
     \begin{figure*}
-\scalebox{.9}{
+\scalebox{.9}{\vbox{%
 \begin{pchstack}[center, space=0.2cm, boxed]
     \begin{pcvstack}
     \procedure[linenumbering]{$\mathsf{G5}(\adversary{A, D})$}{
@@ -571,7 +571,7 @@ See Fig. \ref{prot:construction_simple}.
     }
     \end{pcvstack}
     \end{pchstack}
-}
+}}
 \caption{$\cuf_\idm$ \textsf{G5}}
 \label{game:cuf_idmg5}
 \end{figure*}
@@ -582,7 +582,7 @@ See Fig. \ref{prot:construction_simple}.
         \end{align*}
 
 \begin{figure*}
-\scalebox{.9}{
+\scalebox{.9}{\vbox{%
 \begin{pchstack}[center, space=0.2cm, boxed]
     \begin{pcvstack}
     \procedure[linenumbering]{$\mathsf{G6}(\adversary{A, D})$}{
@@ -609,7 +609,7 @@ See Fig. \ref{prot:construction_simple}.
     }
     \end{pcvstack}
     \end{pchstack}
-}
+}}
 \caption{$\cuf_\idm$ \textsf{G6}}
 \label{game:cuf_idmg5}
 \end{figure*}
