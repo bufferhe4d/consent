@@ -1,0 +1,601 @@
+\abdullah{TODO: Link to key recovery problem: We can create a consent to sign a "Key request" message to recover a key from a key recovery server. Question: How do you keep the server from not giving away your key to others}
+
+
+\section{Protocol (Simple)}
+We consider a simplified model with the following entities to illustrate how consents work:
+
+\subsection{Entities}
+We have 4 entities in our design:
+\begin{enumerate}
+    \item $\client$ is the user who is giving the consent.
+    \item $\idm$ is the identity provider (can be more than one) that $\client$ can interact with to to receive access tokens for their identities.
+    \item $\signserv$ is the entity that acts on behalf of a $\client$ with a given consent.
+    \item $\judge$ is the entity that resolves complaints on the consent protocol.
+\end{enumerate}
+
+\subsection{Interfaces}
+We define the interfaces using the following notation:
+\begin{itemize}
+    \item $(\pout_\idm, \pout_\client, \pout_\signserv) \gets \mathsf{Procedure}(\pin_\idm, \pin_\client, \pin_\signserv)$
+\end{itemize}
+
+In this notation, \textsf{Procedure} denotes a multiparty computation between a subset of $\client, \idm$ and $\signserv$. ${\pin_{i}}_{\{i \in \{\client, \idm, \signserv\}\}}$ and ${\pout_{i}}_{\{i \in \{\client, \idm, \signserv\}\}}$ denote the inputs and outputs of the respective entities. If an entity does not participate in the protocol. Both the input and the output of an entity is set to $\bot$ (e.g. $(\pout_\idm, \pout_\client, \bot) \gets \mathsf{Procedure}(\pin_\idm, \pin_\client, \bot)$, is a multiparty computation between $\idm$ and $\client$. We omit the security parameter $\secparam$ in these high level interfaces.
+
+\begin{itemize}
+    \item  $\sk_\idm, \pk_\idm \gets \idm.\mathsf{Setup(\secparam)}$: $\idm$ generates their secret/public keys.
+    \item $\sk_\signserv, \pk_\signserv \gets \signserv.\mathsf{Setup}(\secparam)$:  $\signserv$ generates their secret/public keys.
+
+    \item $(s_\idm, \bot, \dict) \gets \mathsf{Enroll}(\bot, \pseudo, \bot)$: $\client$ picks a $\pseudo$ and enrolls to an $\signserv$. The $\client$ also distributes two secrets $s_\idm$ and $\agentsecret$ to their respective owners. The $\signserv$ creates a dictionary $\dict$ with key $\pseudo$ and value $\agentsecret$, outputs the $\dict$.
+
+    \item $(\bot, \consent, \consent) \gets \mathsf{Consent}((s_\idm, \sk_\idm), (\pseudo, att), \dict)$: $\client$ gives a consent to $\signserv$ to be used on attribute $att$ under the pseudonym $\pseudo$. The $\signserv$ and $\client$ computes $\consent$.
+    
+    \item $(\bot, \consent, \bot) \gets \mathsf{Show}(\bot, (\pseudo, att), \bot )$
+\end{itemize}
+
+\subsection{Security claims}
+\begin{itemize}
+    \item \textbf{Unforgeability} We model the scenario where an adversary tries to forge a valid consent for a different attribute under the same $\pseudo$.
+
+    \begin{definition}[Consent Unforgeability (Simple)]
+    A \primitive scheme is unforgeable if for any $\ppt$ adversary \adversary{A}, we have
+
+    \begin{align*}
+    \Pr[\cuf\mathsf{Simple}(\adversary{A}) \rightarrow 1] \le \negl
+\end{align*}
+
+where the $\cuf\mathsf{Simple}$ game is defined as follows:
+    \begin{pchstack}[center, space=0.2cm, boxed]
+    \begin{pcvstack}
+    \procedure[linenumbering]{$\cuf\mathsf{Simple}(\adversary{A})$}{
+        \mathsf{enrolled} \gets \emptyset\\
+        \mathsf{queried} \gets \emptyset\\
+        (\sk_\idm, \pk_\idm),  \gets \idm.\mathsf{Setup}(\secparam)\\
+        (\sk_\signserv,\pk_\signserv) \gets \signserv.\mathsf{Setup}(\secparam)\\
+        \adversary{A}^{oracles}(\pk_\idm,\pk_\signserv) \rightarrow \pseudo^*, att^*, \consent^*\\
+        \consent' \gets \mathsf{Show}(\bot, (\pseudo^*, att^*), \bot)\\
+        \pcif \consent' = \consent^* \land (\pseudo^*, att^*) \notin \mathsf{queried} :\\
+            \t\pcreturn 1\\
+        \pcreturn 0
+    }
+    \procedure[linenumbering]{$\mathsf{OEnroll}(\pseudo)$}{
+         \pcif \pseudo \in \mathsf{enrolled}\\
+         \t \textbf{abort}\\
+         \mathsf{enrolled} \gets \mathsf{enrolled} \cup \pseudo\\
+         (s_\idm, \agentsecret) \gets \mathsf{Enroll}(\bot, \pseudo, \bot)\\
+         \pcreturn (s_\idm, \agentsecret) 
+    }
+    \procedure[linenumbering]{$\mathsf{OConsent}(\pseudo, att, s_\idm, (\agentsecret, \dict))$}{
+         \pcif \pseudo \notin \mathsf{enrolled}\\
+         \t \textbf{abort}\\
+         \consent \gets \mathsf{Consent}((\sk_\idm ,s_\idm), (\pseudo, att), (\agentsecret, \dict))\\
+         \mathsf{queried} \gets \mathsf{queried} \cup (\pseudo, att)\\
+         \pcreturn \consent
+    }
+    \end{pcvstack}
+    \end{pchstack}
+
+\end{definition}
+\end{itemize}
+
+\subsection{Construction}
+We have the following construction based on Privacy Pass.
+
+\subsubsection{Setup (Simple)}
+\begin{itemize}
+    \item $(\hat{X}, \bot, {\pk_{\signserv_i}}_{\{i \in [n]\}}) \gets \mathsf{Setup}(\bot, \bot, \bot)$
+    \begin{enumerate}
+	\item Generate $\GG, \GGhat$.
+	\item $\idm$ has secret $x$ and public $\hat{X} \gets x\cdot \GGhat$
+    \item $\signserv_i$ has secret $a_i$ and public $\pk_{\signserv_i} \gets a_i\cdot\GG$
+\end{enumerate}
+\end{itemize}
+
+\subsubsection{Enrolment (Simple)}
+See Fig. \ref{prot:enrolment_simple}.
+\begin{figure*}[h!]
+\pseudocodeblock[] 
+{
+ \idm  \<\< \client  \<\< \signserv(\dict)  \\
+  \<\< \text{pick } \mathsf{pseudo} \<\< \\
+  \< \<\< \sendmessageright{length=1.5cm,top=$\mathsf{pseudo}$}\\
+  \<\< s \sample \bin^\secpar \<\< \\
+  \< \sendmessageleft{length=1.5cm,top=$s$}\<\< \sendmessageright{length=1.5cm,top=$1/s$}\\
+  \<\<  \<\< \texttt{store } \dict[\pseudo] = 1/s\\
+}
+\caption{Enrolment (Simple)}
+\label{prot:enrolment_simple}
+\end{figure*}
+
+
+\subsection{Consent (Simple)}
+ See Fig. \ref{prot:consent_simple}.
+\begin{figure*}[h]
+\pseudocodeblock[xshift=-50pt] 
+{
+ \idm(x, s)  \<\< \client(\pseudo, att)  \<\< \signserv(1/s, \dict)  \\
+  \<\< r \sample \bin^\secpar \<\< \\
+  \<\< Q \gets r\cdot H(\pseudo, att) \<\< \\
+  \< \sendmessageleft{length=1.5cm,top=$Q$} \<\< \\
+  R \gets s \cdot x \cdot Q \< \<  \<\< \\
+  \< \sendmessageright{length=1.5cm,top=$R$} \<\< \\
+  \<\< S \gets (1/r)\cdot R \<\< \\
+  \< \<\< \sendmessageright{length=1.5cm,top={$(\pseudo, att, S)$}}\\
+  \<\<  \<\< \pcif \pseudo \in \dict\\
+  \<\<  \<\< \t \pcabort\\
+  \<\<  \<\< \consent \gets \dict[\pseudo]\cdot S\\
+  % \<\<  \<\< \consent \gets \mathsf{Reconstruct}(\{[\consent]_i\}_{i\in [n]})\\
+  \<\<  \<\< e(\consent, \GGhat) \overset{?}{=} e(H(\pseudo, att), \hat{X})\\  
+}
+\caption{Consent (Simple) for $att$ under $\pseudo$}
+\label{prot:consent_simple}
+\end{figure*}
+
+Note that in this approach, if the $\idm$ colludes with $\signserv$. It can learn which $s$ belongs to which $\pseudo$. This way, the $\idm$ can impersonate the client. In order to prevent this behaviour, we construct another iteration of the same protocol by distributing the $\idm$
+
+
+\section{Protocol (Distributed \idm)}
+\subsection{Entities  (Distributed \idm)}
+In total, we have $n$ $\idm$s. We denote the $i$-th by $\idm_i$. The rest of the entities remain unchanged.
+\subsection{Interfaces (Distributed \idm)}
+We modify the interfaces related to $\idm$ as follows (the rest remains unchanged):
+
+\begin{itemize}
+    \item  $\idmskdist, \idmpkdist \gets \idm.\mathsf{Setup(\secparam)}$: $\idm$s generates their secret/public keys.
+    \item $\sk_\signserv, \pk_\signserv \gets \signserv.\mathsf{Setup}(\secparam)$:  $\signserv$ generates their secret/public keys.
+
+    \item $(\idmsdist, \bot, \dict) \gets \mathsf{Enroll}(\bot, \pseudo, \bot)$: $\client$ picks a $\pseudo$ and enrolls to an $\signserv$. The $\client$ also distributes a secret $s_{\idm_i})$ to each $\idm_i$ and a secret $\agentsecret$ to $\signserv$. The $\signserv$ creates a dictionary $\dict$ with key $\pseudo$ and value $\agentsecret$, outputs the $\dict$.
+
+    \item $(\bot, \consent, \consent) \gets \mathsf{Consent}((\idmsdist, \idmskdist), (\pseudo, att), \dict)$: $\client$ gives a consent to $\signserv$ to be used on attribute $att$ under the pseudonym $\pseudo$. The $\signserv$ and $\client$ computes $\consent$.
+\end{itemize}
+
+\subsection{Security claims (Distributed $\idm$)}
+\begin{itemize}
+    \item \textbf{Unforgeability} We model the scenario where an adversary tries to forge a valid consent for a different attribute under the same $\pseudo$.
+
+    \begin{definition}[Consent Unforgeability (Simple)]
+    A \primitive scheme is unforgeable if for any $\ppt$ adversary \adversary{A}, we have
+
+    \begin{align*}
+    \Pr[\cuf\idm(\adversary{A}) \rightarrow 1] \le \negl
+\end{align*}
+
+where the $\cuf\idm$ game is defined as follows:
+    \begin{pchstack}[center, space=0.2cm, boxed]
+    \begin{pcvstack}
+    \procedure[linenumbering]{$\cuf\idm(\adversary{A})$}{
+        \mathsf{enrolled} \gets \emptyset\\
+        \mathsf{queried} \gets \emptyset\\
+        \mathsf{corrupted} \gets \emptyset\\
+        (\idmskdist, \idmpkdist),  \gets \idm.\mathsf{Setup}(\secparam)\\
+        (\sk_\signserv,\pk_\signserv) \gets \signserv.\mathsf{Setup}(\secparam)\\
+        \adversary{A}^{oracles}(\idmpkdist,\pk_\signserv) \rightarrow \pseudo^*, att^*, \consent^*\\
+        \consent' \gets \mathsf{Show}(\bot, (\pseudo^*, att^*), \bot)\\
+        \pcif \consent' = \consent^* \land (\pseudo^*, att^*) \notin \mathsf{queried} :\\
+            \t\pcreturn 1\\
+        \pcreturn 0
+    }
+    \procedure[linenumbering]{$\mathsf{OEnroll}(\pseudo)$}{
+         \pcif \pseudo \in \mathsf{enrolled}\\
+         \t \textbf{abort}\\
+         \mathsf{enrolled} \gets \mathsf{enrolled} \cup \pseudo\\
+         (s_\idm, \agentsecret) \gets \mathsf{Enroll}(\bot, \pseudo, \bot)\\
+         \pcreturn (s_\idm, \agentsecret) 
+    }
+    \procedure[linenumbering]{$\mathsf{OConsent}(\pseudo, att, s_\idm, (\agentsecret, \dict))$}{
+         \pcif \pseudo \notin \mathsf{enrolled}\\
+         \t \textbf{abort}\\
+         \consent \gets \mathsf{Consent}((\sk_\idm ,s_\idm), (\pseudo, att), (\agentsecret, \dict))\\
+         \mathsf{queried} \gets \mathsf{queried} \cup (\pseudo, att)\\
+         \pcreturn \consent
+    }
+    \procedure[linenumbering]{$\mathsf{OCorrupt}(i)$}{
+         \pcif \#\mathsf{corrupted} = n:\\
+         \t \pcabort\\
+         \mathsf{corrupted} \gets \mathsf{corrupted} \cup \sk_{\idm_i}\\
+         \pcreturn \sk_{\idm_i}
+    }
+    \end{pcvstack}
+    \end{pchstack}
+
+\end{definition}
+
+  \item \textbf{Unlinkability} We model the scenario where the $\idm$ is require to collude with at least $t$ agents to break unlinkability.
+
+\begin{definition}[Unlinkability]
+A \primitive scheme is unlinkable if for any \ppt adversary \adversary{A} , we have
+
+\begin{align*}
+    \Pr[\unlinkidm(\adversary{A}) \rightarrow 1] \le \frac{1}{2} + \negl
+\end{align*}
+
+where the $\unlinkidm$ game is defined as follows:
+
+\begin{pchstack}[center, space=0.2cm, boxed]
+\begin{pcvstack}
+
+    \procedure[linenumbering]{$\unlinkidm(\adversary{A})$}{
+        \mathsf{corrupted} \gets \emptyset\\
+        (\sk_\idm, \pk_\idm),  \gets \idm.\mathsf{Setup}(\secparam)\\
+        (\sk_{\signserv_i},\pk_{\signserv_i}) \gets \signserv.\mathsf{Setup}(\secparam)\\
+        \text{pick } \pseudo_0, \pseudo_1, att_0, att_1\\
+        \idmsdistzero, \agentsecret^0 \gets  \mathsf{OEnroll}(\pseudo_0)\\
+        \idmsdistone, \agentsecret^1 \gets\mathsf{OEnroll}(\pseudo_1)\\
+        \consent_0 \gets \mathsf{OConsent}(\pseudo_0, att_0, \idmsdistzero, \agentsecret^0)\\
+        \consent_1 \gets \mathsf{OConsent}(\pseudo_1, att_1, \idmsdistone, \agentsecret^1)\\
+        b \sample \bin\\
+        \adversary{A}^{oracles}(\pk_\idm, \pk_{\signserv_i}, \pseudo_0, \pseudo_1, \consent_b) \rightarrow b'\\
+        \pcif b = b'\\
+            \t\pcreturn 1\\
+        \pcreturn 0
+    }
+    \procedure[linenumbering]{$\mathsf{OCorrupt}(i)$}{
+        \pcif \#\mathsf{corrupted} = n\\
+            \t \pcabort\\
+        \mathsf{corrupted} \gets \mathsf{corrupted} \cup \sk_{\idm_i}\\
+        \pcreturn \sk_{\idm_i}
+    }
+    \procedure[linenumbering]{$\mathsf{OEnroll}(\pseudo)$}{
+         \pcif \pseudo \in \mathsf{enrolled}\\
+         \t \textbf{abort}\\
+         \mathsf{enrolled} \gets \mathsf{enrolled} \cup \pseudo\\
+         (\idmsdist, \agentsecret) \gets \mathsf{Enroll}(\bot, \pseudo, \bot)\\
+         \pcreturn (\idmsdist, \agentsecret) 
+    }
+    \procedure[linenumbering]{$\mathsf{OConsent}(\pseudo, att,\idmsdist, (\agentsecret, \dict))$}{
+         \pcif \pseudo \notin \mathsf{enrolled}\\
+         \t \textbf{abort}\\
+         \consent \gets \mathsf{Consent}((\idmskdist ,\idmsdist), (\pseudo, att), (\agentsecret, \dict))\\
+         \mathsf{queried} \gets \mathsf{queried} \cup (\pseudo, att)\\
+         \pcreturn \consent
+    }
+
+
+\end{pcvstack}
+
+
+\end{pchstack}
+
+\end{definition}
+
+\end{itemize}
+\subsection{Construction (Distributed $\idm$)}
+We extend the previous constuction with a distributed $\idm$. Here the $\idm$s jointly compute the value $s\cdot x\cdot Q$ by using their own secrets.
+
+\subsubsection{Setup (Simple)}
+\begin{itemize}
+    \item $(\hat{X}, \bot, {\pk_{\signserv_i}}_{\{i \in [n]\}}) \gets \mathsf{Setup}(\bot, \bot, \bot)$
+    \begin{enumerate}
+	\item Generate $\GG, \GGhat$.
+	\item $\idm_i$ has secret $x_i$ and public $\hat{X}_i \gets x_i\cdot \GGhat$
+    \item $\signserv_i$ has secret $a_i$ and public $\pk_{\signserv_i} \gets a_i\cdot\GG$
+\end{enumerate}
+\end{itemize}
+
+\subsubsection{Enrolment (Distributed $\idm$)}
+See Fig. \ref{prot:enrolment_distidm}.
+\begin{figure*}[h!]
+\pseudocodeblock[] 
+{
+ \idm  \<\< \client  \<\< \signserv(\dict)  \\
+  \<\< \text{pick } \mathsf{pseudo} \<\< \\
+  \< \<\< \sendmessageright{length=1.5cm,top=$\mathsf{pseudo}$}\\
+  \<\< s \sample \bin^\secpar \<\< \\
+  \<\< [s]_i \sample \mathsf{Share}(s) \<\< \\
+  \< \sendmessageleft{length=1.5cm,top=$[s]_i$}\<\< \sendmessageright{length=1.5cm,top=$1/s$}\\
+  \<\<  \<\< \texttt{store } \dict[\pseudo] = 1/s\\
+}
+\caption{Enrolment (Distributed \idm)}
+\label{prot:enrolment_distidm}
+\end{figure*}
+
+\subsubsection{Consent (Distributed \idm)}
+ See Fig. \ref{prot:consent_distidm}.
+\begin{figure*}[h]
+\pseudocodeblock[xshift=-50pt] 
+{
+ \idm_i(x_i, [s]_i)  \<\< \client(\pseudo, att)  \<\< \signserv(1/s, \dict)  \\
+  \<\< r \sample \bin^\secpar \<\< \\
+  \<\< Q \gets r\cdot H(\pseudo, att) \<\< \\
+  \< \sendmessageleft{length=1.5cm,top=$Q$} \<\< \\
+  \texttt{MPC Compute:} \< \<  \<\< \\
+  \t R \gets s \cdot x \cdot Q \< \<  \<\< \\
+  \< \sendmessageright{length=1.5cm,top=$R$} \<\< \\
+  \<\< S \gets (1/r)\cdot R \<\< \\
+  \< \<\< \sendmessageright{length=1.5cm,top={$(\pseudo, att, S)$}}\\
+  \<\<  \<\< \pcif \pseudo \in \dict\\
+  \<\<  \<\< \t \pcabort\\
+  \<\<  \<\< \consent \gets \dict[\pseudo]\cdot S\\
+  % \<\<  \<\< \consent \gets \mathsf{Reconstruct}(\{[\consent]_i\}_{i\in [n]})\\
+  \<\<  \<\< e(\consent, \GGhat) \overset{?}{=} e(H(\pseudo, att), \sum_{i=1}^N\hat{X}_i)\\  
+}
+\caption{Consent (Distributed \idm) for $att$ under $\pseudo$}
+\label{prot:consent_distidm}
+\end{figure*}
+
+
+\newpage
+\section{Protocols}
+% The protocols involve the following parties: user $\client$, identity manager $\idm$, agent $A$.
+\subsection{Entities}
+We have 4 entities in our design:
+\begin{enumerate}
+    \item $\client$ is the user who is giving the consent.
+    \item $\idm$ is the identity provider (can be more than one) that $\client$ can interact with to to receive access tokens for their identities.
+    \item $\signserv$ is the entity that acts on behalf of a $\client$ with a given consent. To provide unlinkability and other security properties, we use a service provider distributed to $n$ different parties.
+    \item $\judge$ is the entity that resolves complaints on the consent protocol.
+\end{enumerate}
+
+\subsection{Interfaces}
+We define the interfaces using the following notation:
+\begin{itemize}
+    \item $(\pout_\idm, \pout_\client, \pout_\signserv) \gets \mathsf{Procedure}(\pin_\idm, \pin_\client, \pin_\signserv)$
+\end{itemize}
+
+In this notation, \textsf{Procedure} denotes a multiparty computation between a subset of $\client, \idm$ and $\signserv$. ${\pin_{i}}_{\{i \in \{\client, \idm, \signserv\}\}}$ and ${\pout_{i}}_{\{i \in \{\client, \idm, \signserv\}\}}$ denote the inputs and outputs of the respective entities. If an entity does not participate in the protocol. Both the input and the output of an entity is set to $\bot$ (e.g. $(\pout_\idm, \pout_\client, \bot) \gets \mathsf{Procedure}(\pin_\idm, \pin_\client, \bot)$, is a multiparty computation between $\idm$ and $\client$. We omit the security parameter $\secparam$ in these high level interfaces.
+
+\begin{itemize}
+    \item $(\sk_\idm, \pk_\idm), {(\sk_{\signserv_i},\pk_{\signserv_i})}_{\{i \in [n]\}} \gets \idm.\mathsf{Setup}(\secparam), \signserv.\mathsf{Setup}(\secparam)$: $\idm$ and all $\signserv$s generate their secret/public keys.
+    \item $(\sk_\idm, \pk_\idm), {(\sk_{\signserv_i},\pk_{\signserv_i})}_{\{i \in [n]\}} \gets \idm.\mathsf{Setup}(\secparam), \signserv.\mathsf{Setup}(\secparam)$: $\idm$ and all $\signserv$s generate their secret/public keys.
+    \abdullah{TODO Split these}
+    % \abdullah{Not sure if we should consider $\signserv$ as a single entity here and write the interfaces without indexing them by $i$.}
+    % \item $(I, I, \bot) \gets \mathsf{Register}(\bot, \pk_\idm, \bot)$: $\client$ registers to the $\idm$ that owns $\pk_\idm$ under identity $I$.
+    \item $(s_\idm, \bot, (\pseudo, {\agentsecret}_i)_{\{i \in [n]\}}) \gets \mathsf{Enroll}(\bot, \pseudo, \bot)$: $\client$ picks a $\pseudo$ and enrolls to an $\signserv$. The $\client$ also distributes two secrets $s_\idm$ and $\agentsecret$ to their respective owners.
+    \abdullah{TODO create database}
+    \item $(\bot, \consent, [\consent]_i) \gets \mathsf{Consent}((s_\idm, \sk_\idm), (\pseudo, att), ({\agentsecret}_i)_{\{i \in [n]\}})$: $\client$ gives the $\consent$ to the $\signserv$ to be used on attribute $att$ under the pseudonym $\pseudo$.
+    \abdullah{TODO use the database as input here}
+    \item $(\bot, \consent, \bot) \gets \mathsf{Show}(\bot, (\pseudo, att), \bot )$
+\end{itemize}
+
+\section{Security claims}
+
+\begin{itemize}
+    \item \textbf{Unforgeability} We model the scenario where an adversary tries to forge a valid consent for a different attribute under the same $\pseudo$.
+
+    \begin{definition}[Consent Unforgeability]
+    A \primitive scheme is unforgeable if for any $\ppt$ adversary \adversary{A}, we have
+
+    \begin{align*}
+    \Pr[\cuf(\adversary{A}) \rightarrow 1] \le \negl
+\end{align*}
+
+where the $\cuf$ game is defined as follows:
+\abdullah{TODO change the OConsent to store (pseudo,att) in a list. Moreover, I need corruption oracles for honest IdM and dishonest IdM}
+
+
+    \begin{pchstack}[center, space=0.2cm, boxed]
+    \begin{pcvstack}
+    \procedure[linenumbering]{$\cuf(\adversary{A})$}{
+        \mathsf{enrolled} \gets \emptyset\\
+        (\sk_\idm, \pk_\idm),  \gets \idm.\mathsf{Setup}(\secparam)\\
+        {(\sk_{\signserv_i},\pk_{\signserv_i})}_{\{i \in [n]\}} \gets \signserv.\mathsf{Setup}(\secparam)\\
+        \mathsf{OEnroll}(\pseudo^*)\\
+        \adversary{A}^{oracles}(\pk_\idm,\pk_{\signserv_i}, \pseudo^*) \rightarrow att^*, \consent^*\\
+        \consent' \gets \mathsf{Show}(\bot, (\pseudo^*, att^*), \bot)\\
+        \pcif \consent' = \consent^*:\\
+            \t\pcreturn 1\\
+        \pcreturn 0
+    }
+    \procedure[linenumbering]{$\mathsf{OEnroll}(\pseudo)$}{
+         \pcif \pseudo \in \mathsf{enrolled}\\
+         \t \textbf{abort}\\
+         \mathsf{enrolled} \gets \mathsf{enrolled} \cup \pseudo\\
+         s_\idm, ({\agentsecret}_i)_{\{i \in [n]\}})) \gets \mathsf{Enroll}(\bot, \pseudo, \bot)\\
+         \pcreturn s_\idm, ({\agentsecret}_i)_{\{i \in [n]\}})) 
+    }
+    \procedure[linenumbering]{$\mathsf{OConsent}(\pseudo, att, s_\idm, ({\agentsecret}_i)_{\{i \in [n]\}})$}{
+         \pcif \pseudo \notin \mathsf{enrolled}\\
+         \t \textbf{abort}\\
+         \consent \gets \mathsf{Consent}((\sk_\idm ,s_\idm, (\pseudo, att), ({\agentsecret}_i)_{\{i \in [n]\}}))\\
+         \pcreturn \consent
+    }
+
+    
+    \end{pcvstack}
+    
+    \end{pchstack}
+
+\end{definition}
+    \item \textbf{Unlinkability} We model the scenario where the $\idm$ is require to collude with at least $t$ agents to break unlinkability.
+
+\begin{definition}[Threshold Unlinkability]
+A \primitive scheme is $t$-unlinkable if for any \ppt adversary \adversary{A} , we have
+
+\begin{align*}
+    \Pr[\tunlink(\adversary{A}) \rightarrow 1] \le \frac{1}{2} + \negl
+\end{align*}
+
+where the $\tunlink$ game is defined as follows:
+
+\begin{pchstack}[center, space=0.2cm, boxed]
+\begin{pcvstack}
+
+    \procedure[linenumbering]{$\tunlink(\adversary{A})$}{
+        (\sk_\idm, \pk_\idm),  \gets \idm.\mathsf{Setup}(\secparam)\\
+        {(\sk_{\signserv_i},\pk_{\signserv_i})}_{\{i \in [n]\}} \gets \signserv.\mathsf{Setup}(\secparam)\\
+        \mathsf{corrupted} \gets \emptyset 
+        \text{pick } \pseudo_0, \pseudo_1, att_0, att_1\\
+        s_\idm0, ({\agentsecret}_i0)_{\{i \in [n]\}}))\gets  \mathsf{OEnroll}(\pseudo_0)\\
+        s_\idm1, ({\agentsecret}_i1)_{\{i \in [n]\}}))\gets\mathsf{OEnroll}(\pseudo_1)\\
+        \consent_0 \gets \mathsf{OConsent}(\pseudo_0, att_0, s_\idm0, ({\agentsecret}_i0)_{\{i \in [n]\}})))\\
+        \consent_1 \gets \mathsf{OConsent}(\pseudo_1, att_1, s_\idm1, ({\agentsecret}_i1)_{\{i \in [n]\}})))\\
+        b \sample \bin\\
+        \adversary{A}^{oracles}(\pk_\idm, \pk_{\signserv_i}, \pseudo_0, \pseudo_1, \consent_b) \rightarrow b'\\
+        \pcif b = b'\\
+            \t\pcreturn 1\\
+        \pcreturn 0
+    }
+    \procedure[linenumbering]{$\mathsf{OCorrupt}(i)$}{
+        \pcif #\mathsf{corrupted} > t\\
+            \t \textbf{abort}\\
+        \mathsf{corrupted} \gets \mathsf{corrupted} \cup i\\
+        \pcreturn \sk_{\signserv_i}
+    }
+    \procedure[linenumbering]{$\mathsf{OEnroll}(\pseudo)$}{
+         \pcif \pseudo \in \mathsf{enrolled}\\
+         \t \textbf{abort}\\
+         \mathsf{enrolled} \gets \mathsf{enrolled} \cup \pseudo\\
+         s_\idm, ({\agentsecret}_i)_{\{i \in [n]\}})) \gets \mathsf{Enroll}(\bot, \pseudo, \bot)\\
+         \pcreturn s_\idm, ({\agentsecret}_i)_{\{i \in [n]\}})) 
+    }
+    \procedure[linenumbering]{$\mathsf{OConsent}(\pseudo, att, s_\idm, ({\agentsecret}_i)_{\{i \in [n]\}})$}{
+         \pcif \pseudo \notin \mathsf{enrolled}\\
+         \t \textbf{abort}\\
+         \consent \gets \mathsf{Consent}((\sk_\idm ,s_\idm, (\pseudo, att), ({\agentsecret}_i)_{\{i \in [n]\}}))\\
+         \pcreturn \consent
+    }
+
+\end{pcvstack}
+
+
+\end{pchstack}
+
+\end{definition}
+
+\abdullah{Notes:
+
+If IdM is honest and agent is corrupted, (assuming the binding to Xhat is solved), the unforgeability of the consent should reduce to the unforgeability of the token.
+
+If IdM is corrupted and the agent is honest, the scheme can be broken if IdM figures out what is pseudo. Here, an additional password could be useful.
+
+If IdM is honest-but-curious and agent is malicious, they cannot link their views. (Note that agent is quite passive in the above protocol so being malicious and honest-but-curious are the same.)
+
+If IdM is malicious and collude with agent, he could send some garbage R and see which token was incorrect to identify pseudo.
+
+We could enforce IdM being at most malicious-but-curious by making IdM prove that R is correct. The problem is that it related with a secret s that the user does not want to store. So the best would be to make IdM remind the user of how to verify something related to s but I am not sure how to do. We could register s.G, use a DLEQ proof, and add a signature of s.G by the user...
+
+}
+\end{itemize}
+
+
+
+\section{Construction}
+
+\subsection{Setup}
+\begin{itemize}
+    \item $(\hat{X}, \bot, {\pk_{\signserv_i}}_{\{i \in [n]\}}) \gets \mathsf{Setup}(\bot, \bot, \bot)$
+    \begin{enumerate}
+	\item Generate $\GG, \GGhat$.
+	\item $\idm$ has secret $x$ and public $\hat{X} \gets x\cdot \GGhat$
+    \item $\signserv_i$ has secret $a_i$ and public $\pk_{\signserv_i} \gets a_i\cdot\GG$
+\end{enumerate}
+\end{itemize}
+
+
+% \subsection{Registration}
+% \begin{itemize}
+%     \item $(I, I, \bot) \gets \mathsf{Register}(\bot, \hat{X}, \bot)$
+
+%     \begin{enumerate}
+% 	\item The procedure registers user $\client$ under identity $I$.
+% \end{enumerate}
+% \end{itemize}
+
+\subsection{Enrolment}
+\begin{itemize}
+    \item $(s, \bot, (\pseudo, {[1/s]_i}_{\{i \in [n]\}})) \gets \mathsf{Enroll}(\bot, \pseudo, \bot)$
+    \begin{enumerate}
+        \item $(s, \bot,\{[1/s]_i\}_{i\in [n]}) \gets$ \textsf{Client.Enroll}($\secparam, \pseudo$): Takes as input a security parameter $\secparam$ and $\pseudo$, outputs secret $s$ to be sent to the $\idm$ and outputs a set of shares $\{[1/s]_i\}_{i\in [n]}$ to be distributed among $\signserv$.
+        \item $\bot \gets$ \textsf{\idm.ReceiveEnroll}($s$): Takes as input a secret  $s$ to be utilized in the consent protocol. Stores it in the client's profile.
+        \item $\bot \gets$ \textsf{\signserv.ReceiveEnroll}($i, \pseudo, [1/s]_i$): Takes as input and index $i$, a $\pseudo$ and a secret share $[1/s]_i$ corresponding to index $i$. If the $\pseudo$ is new, create a new profile with index $\pseudo$ and value $[1/s]_i$. Otherwise, abort.
+    \end{enumerate}
+\end{itemize}
+
+\begin{figure*}[h!]
+\pseudocodeblock[] 
+{
+ \idm  \<\< \client  \<\< \signserv_i  \\
+  \<\< \text{pick } \mathsf{pseudo} \<\< \\
+  \< \<\< \sendmessageright{length=1.5cm,top=$\mathsf{pseudo}$}\\
+  \<\< s \sample \bin^\secpar \<\< \\
+  \<\< [1/s]_i \sample \mathsf{Share}(1/s) \<\< \\
+  \< \sendmessageleft{length=1.5cm,top=$s$}\<\< \sendmessageright{length=1.5cm,top=$[1/s]_i$}
+}
+\caption{Enrolment}
+\label{prot:enrolment}
+\end{figure*}
+
+
+\subsection{Consent}
+\begin{itemize}
+    \item $(\bot, \consent, [\consent]_i) \gets \mathsf{Consent}((x,s), (\pseudo, att), \bot)$
+    \begin{enumerate}
+    \item $(\st, Q) \gets$ \textsf{Client.InitiateConsent}($\pseudo, att$): Takes as input a $\pseudo$ and an attribute (message to be signed) $att$, outputs a group element $Q$ to be sent to the $\idm$ and a $\st$.
+    
+    \item $R \gets$ \textsf{\idm.ReceiveInitiate}($x, s, Q$): Takes as input a private key $x$, a secret $s$ from the profile of the client and a group element $Q$, outputs a group element $R$.
+    \item $S \gets$ \textsf{Client.Consent}($R, \st$): Takes as input a group element $R$ and a $\st$ outputs a group element $S$.
+    \item $[\consent]_i \gets \signserv.\mathsf{ReceiveConsent}(i, [1/s]_i, \pseudo, [att]_i, S)$ 
+    \item $\consent \gets \client.\mathsf{RecConsent}(([\consent]_i)_{i \in [n]}$: takes as input $[\consent]_i$ from $\signserv$ i, reconstructs them to output $\consent$.
+\end{enumerate}
+\end{itemize}
+
+
+\begin{figure*}[h!]
+\pseudocodeblock[xshift=-50pt] 
+{
+ \idm  \<\< \client  \<\< \signserv  \\
+  \<\< r \sample \bin^\secpar \<\< \\
+  \<\< Q \gets r\cdot H(\pseudo, att) \<\< \\
+  \< \sendmessageleft{length=1.5cm,top=$Q$} \<\< \\
+  R \gets s \cdot x \cdot Q \< \<  \<\< \\
+  \< \sendmessageright{length=1.5cm,top=$R$} \<\< \\
+  \<\< S \gets (1/r)\cdot R \<\< \\
+  \< \<\< \sendmessageright{length=1.5cm,top={$(\pseudo, att, S)$}}\\
+  \<\<  \<\< [\consent]_i \gets [1/s]_i\cdot S\\
+  % \<\<  \<\< \consent \gets \mathsf{Reconstruct}(\{[\consent]_i\}_{i\in [n]})\\
+  \<\<  \<\< e([\consent]_i, \GGhat) \overset{?}{=} e(H(\pseudo, [att]_i), \hat{X})\\ 
+}
+\caption{Consent}
+\label{prot:consent}
+\end{figure*}
+\abdullah{Here, it is very impractical to do the last check since it requires a pairing computation over shares of $\consent$ plus a hash computation over the shares of $att$}
+
+\subsection{Dispute/Show}
+In the case of dispute, the user goes to the judge with a case of usage of his valuables (e.g. a signature with attribute $att$) and his \textsf{pseudo} and the contract by the agent on the \textsf{pseudo}. The agent shows the token to the judge who verifies if the token is valid.
+There is something missing here: the judge must figure out if there is a binding between pseudo and $\hat{X}$. Ok, $\hat{X}$ could be publicly known as the public key of some important IdM, but a malicious agent could still for a consent with the well known public key of a corrupted IdM and pretend that the user was registered with that public key. This is why I added the "contract" but maybe there are other possible fixes.
+
+
+
+
+\subsection{The challenges and differences}
+\begin{enumerate}
+    \item How is $\idm$ working for already established systems such as Google/Meta? Are they based on web-tokens?
+    \item How does Adobe business work with certificates? Find the standards, understand, and cite them.
+     
+    \item How does IdP generate $\pseudo$? How does the token which comes from $\idm$ in a specific form embeds more attributes -the $\signserv$ should not be able to change the extra attributes such as the hash of the PDF document or so?
+
+    We need a neat way to generate access tokens with attributes we want. How do we do it without modifying the $\idm$?
+
+    \item We may need distributed $\signserv$ so that a single server does not hold the secret keys of users.
+
+    \item User gets a pseudonym $\pseudo$ from the $\idm$ and submits her secret key along with this to $\signserv$ to tie the identity to a secret key.
+    \abdullah{$\pseudo$ is generated by the client right?}
+    We can ideally have $\pseudo_\signserv$ computed from $\pseudo$. How can we do it securely but without using any secret material from the user?
+
+     \item SigStore vs Our solution: SigStore relies on short-living ephemeral keys of users to sign artifacts. It designs its own $\ca$ where the keys will get certificates. We can't rely on such a solution as PDF readers accepts certificates only from certain $\ca$s.
+
+    If we take out the Fulcio's identity log from SigStore, does the rest work fine?
+
+    \item Can we generalize this to sign other format such as XML files? 
+    \abdullah{How does the file format effects the protocol?}
+\end{enumerate}
+
+
+\section{Example Scenario - Signing Service}
+
+\begin{enumerate}
+    \item $\client$ is the user of the electronic signature application.
+    \item $\ca$ is the Certificate Authority which has a business contract with PDF readers and generates certificates for the users signing keys to be embedded in the PDFs.
+    \item $\idm$ is one of the main identity providers that user can log-in to receive access tokens.
+    \item $\app$ is the software which inserts the signatures into PDF documents accordingly.
+    \item $\signserv$ is the service provider which signs the hash of the documents with the corresponding signing keys of the users. To provide unlinkability and other security properties, we use a service provider distributed to $n$ different parties.
+    \item $\judge$ is the entity that resolves complaints on the consent protocol.
+\end{enumerate}
+
+\section{Example Scenario - Key Storage}
+
+\begin{enumerate}
+    \item $\client$ is the user of the electronic signature application.
+    \item $\idm$ is one of the main identity providers that user can log-in to receive access tokens.
+    \item $\mathsf{StorageS}$ is the service provider which stores the keys of the $\client$.
+    \item $\judge$ is the entity that resolves complaints on the consent protocol.
+\end{enumerate}

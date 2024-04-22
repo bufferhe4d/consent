@@ -1,0 +1,962 @@
+
+
+\section{Protocol (Simple)}
+We consider a simplified model with the following entities to illustrate how consents work:
+
+\subsection{Entities}
+We have 4 entities in our design:
+\begin{enumerate}
+    \item $\client$ is the user who is giving the consent.
+    \item $\idm$ is the identity provider (can be more than one) that $\client$ can interact with to receive access tokens for their identities.
+    \item $\signserv$ is the entity that acts on behalf of a $\client$ with a given consent.
+    \item $\judge$ is the entity that resolves complaints on the consent protocol.
+\end{enumerate}
+
+\subsection{Interfaces}
+
+We define the interfaces as follows and depict the flow of the procedures in Figure \ref{prot:interface_simple}.
+
+\begin{itemize}
+    \item  $\sk_\idm, \pk_\idm \gets \idm.\mathsf{Setup(\secparam)}$: $\idm$ generates their secret/public keys.
+    % \item $\sk_\signserv, \pk_\signserv \gets \signserv.\mathsf{Setup}(\secparam)$:  $\signserv$ generates their secret/public keys.
+    \item $(s_\idm, \agentsecret) \gets \mathsf{Enroll}(\pseudo)$: Enrolls the $\client$ under $\pseudo$ to an $\signserv$. Generates two secrets $s_\idm$ and $\agentsecret$ to be sent to $\idm$ and $\signserv$ respectively.
+    
+    \item $(\query, \state) \gets \mathsf{Consent.Launch}(\pseudo, att)$: $\client$ initiates the consent protocol by sending a $\query$ to $\idm$ and stores the $\state$.
+
+    \item $\response \gets \mathsf{Consent.}\idm(s_\idm, \sk_\idm, \query)$: $\idm$ receives the $\query$ and sends back a $\response$.
+
+    \item $\order \gets \mathsf{Consent.Commit}(\state, \response)$: $\client$ creates on order of a consent for its $\state$. Sends $\order$ to $\signserv$.
+
+    \item $\consent \gets \mathsf{Consent.\signserv}(\agentsecret, \pseudo, att, \order)$: $\signserv$ receives the $\order$ and outputs a $\consent$ for $(\pseudo, att)$.
+
+    \item $0/1 \gets \mathsf{Verify}(\pk_\idm, \pseudo, att, \consent)$: The verification procedure takes as input the public key of the $\idm$ $\pk_\idm$ and a $\consent$ issued on $\pseudo$ and $att$. Returns 1 if the $\consent$ is valid. $0$ otherwise.
+\end{itemize}
+
+\begin{figure*}[h!]
+\scalebox{.85}{
+\pseudocodeblock[xshift=-60pt] 
+{
+ \idm(\sk_\idm)  \<\< \client  \<\< \signserv(\pk_\idm, \dict)\pclb
+ \pcintertext[dotted]{Enroll} \\
+  \<\< \text{sample } \pseudo \sample \mathcal{D} \<\< \\
+  \<\< \text{pick } \login \<\< \\
+  \<\< (s_\idm, \agentsecret) \gets \mathsf{Enroll}(\pseudo) \<\< \\
+  \< \sendmessageleft{length=1.5cm,top=$s_\idm$}\<\< \sendmessageright{length=1.5cm,top={$\agentsecret, \login$,\pseudo}}\\
+  \<\<  \<\< \texttt{store } \dict[\login,\pseudo] = \agentsecret\pclb
+  \pcintertext[dotted]{Consent} \\
+  \<\< \query, \state \gets \mathsf{Launch}(\pseudo, att) \<\< \\
+  \< \sendmessageleft{length=1.5cm,top=$\query$} \<\< \\
+  \response \gets \idm(s_\idm, \sk_\idm, \query) \< \<  \<\< \\
+  \< \sendmessageright{length=1.5cm,top=$\response$} \<\< \\
+  \<\< \order \gets \mathsf{Commit}(\state, \response) \<\< \\
+  \< \<\< \sendmessageright{length=1.5cm,top={$(\pseudo, \login, att, \order)$}}\\
+  \<\<  \<\< \pcif (\login,\pseudo) \notin \dict\\
+  \<\<  \<\< \t \pcabort\\
+  \<\<  \<\< \agentsecret \gets \dict[\login,\pseudo]\\
+  \<\<  \<\< \consent \gets \signserv(\agentsecret, \pseudo, att, \order)\\
+  % \<\<  \<\< \consent \gets \mathsf{Reconstruct}(\{[\consent]_i\}_{i\in [n]})\\
+  \<\<  \<\< \mathsf{Verify}(\pk_\idm, \pseudo, att, \consent)\overset{?}{=} 1\\  
+}
+}
+\caption{Consent Protocol}
+\label{prot:interface_simple}
+\end{figure*}
+
+
+\subsection{Security claims}
+\begin{itemize}
+    \item \textbf{Unforgeability} We model the forgeability in two different scenarios: (1) an adversary controls the $\idm$ and can corrupt arbitrarily many client and tries to forge a valid consent for an honest client (victim) and (2) an adversary controls the $\signserv$, corrupts as many clients as possible and tries to forge a valid consent for an honest client.
+
+
+    \begin{definition}[Consent Unforgeability with corrupted $\idm$]
+    Let $\mathcal{D}$ be a distribution with min-entropy $\mathcal{D}_{min}$.
+    In the $\cuf_\idm$ game defined in Figure \ref{game:cuf_idm}, we define the advantage of the $\adversary{A}$ as follows:
+    \begin{align*}
+    \advtg_\adversary{A}^{\cuf_\idm}(\secpar, \mathcal{D}) = \Pr[\cuf_\idm(\adversary{A, D}) \rightarrow 1] 
+    \end{align*}
+
+We say that a \primitive is secure under $\cuf_\idm$ if for any $\ppt$ adversary \adversary{A} limited to $q$ queries to $\mathsf{OOrder}$ \footnote{We additionaly count the $\mathsf{OOrder}$ queries since each query to $\mathsf{OOrder}$ can be utilized as a $\pseudo$ correctness check.}, we have:
+\begin{align*}
+    \advtg_\adversary{A}^{\cuf_\idm}(\secpar, \mathcal{D})  \le \frac{1+q}{2^{\mathcal{D}_{min}}} + \negl
+\end{align*}
+
+\begin{figure*}
+\scalebox{.9}{
+\begin{pchstack}[center, space=0.2cm, boxed]
+    \begin{pcvstack}
+    
+    \procedure[linenumbering]{$\cuf_\idm(\adversary{A, D})$}{
+        \mathsf{enrolled} \gets \emptyset\\
+        \mathsf{cst} \gets \{\} \pccomment{challenge state}\\
+        \pk_\idm, \mathsf{st}, \login^* \gets \adversary{A}_1(\secparam)\\
+        \pseudo^* \sample \mathcal{D}\\
+        s_\idm^* \gets \mathsf{OEnroll}(\login^*, \pseudo^*)\\
+        \adversary{A}_2^{\text{oracles}}(\mathsf{s_\idm^*, st}) \rightarrow  att^*, \consent^*\\
+        \pcif \mathsf{Verify}(\pk_\idm, \login^*, \pseudo^*, att^*, \consent^*):\\
+            \t\pcreturn 1\\
+        \pcreturn 0
+    }
+    \procedure[linenumbering]{$\mathsf{OEnroll}(\login, \pseudo)$}{
+        \pcif \login \in \mathsf{enrolled}\\
+        \t \textbf{abort}\\
+        \mathsf{enrolled} \gets \mathsf{enrolled} \cup \login\\
+        (s_\idm, \agentsecret) \gets \mathsf{Enroll}(\pseudo)\\
+        \dict[(\login, \pseudo)] \gets \agentsecret\\
+        \pcreturn s_\idm
+    }
+
+    
+    \procedure[linenumbering]{$\mathsf{OCorruptEnroll}(\login, \pseudo, \agentsecret)$}{
+         \pcif \login \in \mathsf{enrolled}\\
+         \t \textbf{abort}\\
+         \mathsf{enrolled} \gets \mathsf{enrolled} \cup \login\\
+         \dict[(\login, \pseudo)] \gets \agentsecret\\
+         \pcreturn \bot
+    }
+
+
+    \procedure[linenumbering]{$\mathsf{OLaunch}(sid, att)$}{
+         \pcif  sid \notin \mathsf{cst}\\
+         \t \textbf{abort}\\
+         \query, \state \gets \mathsf{Launch}(\pseudo^*, att)\\
+         \mathsf{cst}[sid].att \gets att\\
+         \mathsf{cst}[sid].\state \gets \state\\
+         \pcreturn \query
+    }
+    
+    \end{pcvstack}
+    \begin{pcvstack}
+    
+    \procedure[linenumbering]{$\mathsf{OCommit}(sid, \response)$}{
+         \pcif sid \notin \mathsf{cst}\\
+         \t \textbf{abort}\\
+         \order \gets \mathsf{Commit}(\mathsf{cst}[sid].\state, \response)\\
+         \consent \gets \signserv(\dict[(\login^*, \pseudo^*)], \\
+         ~~~~~~~~~~~~~~~~~~ \pseudo^*, \mathsf{cst}[sid].att, \order)\\
+         \pcif \consent = \bot\\
+         \t \pcreturn \false\\
+        \pcreturn \true
+    }
+
+
+    \procedure[linenumbering]{$\mathsf{OOrder}(\login, \pseudo, att, \order)$}{
+        \consent \gets \signserv(\dict[(\login,\pseudo)], \pseudo, att, \order)\\
+        \pcreturn \consent
+    }
+    \end{pcvstack}
+    \end{pchstack}
+}
+\caption{$\cuf_\idm$ Game}
+\label{game:cuf_idm}
+\end{figure*}
+\end{definition}
+
+\begin{definition}[Consent Unforgeability with corrupted $\signserv$]
+    A \primitive scheme is unforgeable against a corrupted $\signserv$ if for any $\ppt$ adversary \adversary{A}, we have
+
+    \begin{align*}
+    \Pr[\cuf_\signserv(\adversary{A}) \rightarrow 1] \le \negl
+    \end{align*}
+
+where the $\cuf_\signserv$ game is defined in Figure \ref{game:cuf_simple_agent}:
+\begin{figure*}
+\begin{pchstack}[center, space=0.2cm, boxed]
+    \begin{pcvstack}
+    \procedure[linenumbering]{$\cuf_\signserv(\adversary{A})$}{
+        \mathsf{enrolled} \gets \emptyset\\
+        \mathsf{corrupted} \gets \{\}\\
+        \mathsf{ordered} \gets \emptyset\\
+        \sk_\idm, \pk_\idm \gets \idm.\mathsf{Setup}(\secparam)\\
+        \adversary{A}^{oracles}(\pk_\idm) \rightarrow \login^*, \pseudo^*, att^*, \consent^*\\
+        \pcif \mathsf{Verify}(\pk_\idm, \pseudo^*, att^*, \consent^*) \\
+        \land (\pseudo^*, att^*) \notin \mathsf{ordered}\\
+        \land \login^* \notin \mathsf{corrupted}:\\
+        \land \login^* \in \mathsf{enrolled}\\
+            \t\pcreturn 1\\
+        \pcreturn 0
+    }
+    \procedure[linenumbering]{$\mathsf{OEnroll}(\login, \pseudo)$}{
+         \pcif \login \in \mathsf{enrolled}\\
+         \t \textbf{abort}\\
+         \mathsf{enrolled} \gets \mathsf{enrolled} \cup \login\\
+         (s_\idm, \agentsecret) \gets \mathsf{Enroll}(\pseudo)\\
+         \dict[\login, \pseudo] \gets s_\idm\\
+         \pcreturn \agentsecret
+    }
+    \procedure[linenumbering]{$\mathsf{OCorruptEnroll}(\login, s_\idm)$}{
+         \pcif \login \in \mathsf{enrolled}\\
+         \t \textbf{abort}\\
+         \mathsf{enrolled} \gets \mathsf{enrolled} \cup \login\\
+         \mathsf{corrupted}[\login] \gets s_\idm\\
+         \pcreturn \bot
+    }
+    
+    \end{pcvstack}
+    \begin{pcvstack}
+        \procedure[linenumbering]{$\mathsf{OLaunch}(\login, \pseudo, att)$}{
+         \pcif \login \notin \mathsf{enrolled} \lor \login \in \mathsf{corrupted}\\
+         \t \textbf{abort}\\
+         \query, \state \gets \mathsf{Launch}(\pseudo, att)\\
+        \response \gets \idm(\dict[\login,\pseudo], \sk_\idm, \query)\\
+         \order \gets \mathsf{Commit}(\state, \response)\\
+         \mathsf{ordered} \gets \mathsf{ordered} \cup (\pseudo, att)\\
+         \pcreturn \order
+        }
+        \procedure[linenumbering]{$\mathsf{OCorruptCommit}(\login, \query)$}{
+             \pcif \login \notin \mathsf{corrupted}\\
+             \t \textbf{abort}\\
+             \response \gets \idm(\mathsf{corrupted}[\login], \sk_\idm, \query)\\
+             \pcreturn \response
+        }
+    \end{pcvstack}
+    \end{pchstack}
+\caption{$\cuf_\signserv$ Game}
+\label{game:cuf_simple_agent}
+\end{figure*}
+\end{definition}
+
+\end{itemize}
+
+\subsection{Construction}
+We have the following construction based on Privacy Pass.
+
+\subsubsection{Setup}
+\begin{itemize}
+    \item $(x, \hat{X}) \gets \idm.\mathsf{Setup}(\secparam):$ Generate $\GGhat$ and $x$. Return $x$ and $\hat{X} \gets x\cdot \GGhat$
+    % \item $(a, A) \gets \signserv.\mathsf{Setup}(\secparam):$ Generate $\GG$ and $a$. Return $a$ and $A \gets a\cdot \GG$
+\end{itemize}
+
+\subsubsection{Consent}
+See Fig. \ref{prot:construction_simple}.
+\begin{figure*}
+\pseudocodeblock[xshift=-60pt] 
+{
+ \idm(x)  \<\< \client  \<\< \signserv(\dict)\pclb
+ \pcintertext[dotted]{Enroll} \\
+  \<\< \text{pick } \login\<\< \\
+  \<\< \text{sample } \pseudo \sample \mathcal{D}\<\< \\
+  \<\< s \sample \ZZ_q \<\< \\
+  \<\< (s_\idm, \agentsecret) \gets (s, 1/s) \<\< \\
+  \< \sendmessageleft{length=1.5cm,top=$s_\idm$}\<\< \sendmessageright{length=1.5cm,top={$\agentsecret, \login, \pseudo$}}\\
+  \<\<  \<\< \texttt{store } \dict[\login, \pseudo] = \agentsecret\pclb
+\pcintertext[dotted]{Consent} \\
+  \<\< r \sample \ZZ_q \<\< \\
+  \<\< Q \gets r\cdot H(\pseudo, att) \<\< \\
+  \< \sendmessageleft{length=1.5cm,top=$Q$} \<\< \\
+  R \gets s_\idm \cdot x \cdot Q \< \<  \<\< \\
+  \< \sendmessageright{length=1.5cm,top=$R$} \<\< \\
+  \<\< S \gets (1/r)\cdot R \<\< \\
+  \< \<\< \sendmessageright{length=1.5cm,top={$(\login, \pseudo, att, S)$}}\\
+  \<\<  \<\< \pcif (\login,\pseudo) \in \dict\\
+  \<\<  \<\< \t \pcabort\\
+  \<\<  \<\< \consent \gets \dict[\login, \pseudo]\cdot S\\
+  % \<\<  \<\< \consent \gets \mathsf{Reconstruct}(\{[\consent]_i\}_{i\in [n]})\\
+  \<\<  \<\< e(\consent, \GGhat) \overset{?}{=} e(H(\pseudo, att), \hat{X})\\  
+}
+\caption{Consent Protocol Construction}
+\label{prot:construction_simple}
+\end{figure*}
+
+\begin{figure*}
+\pseudocodeblock[xshift=-65pt] 
+{
+ \idm((x, y), G, G')  \<\< \client(Y, G)  \<\< \signserv(\dict)\pclb
+ \pcintertext[dotted]{Enroll} \\
+  \<\< \text{pick } \login\<\< \\
+  \<\< \text{sample } \pseudo \sample \mathcal{D}\<\< \\
+  \<\< s \sample \bin^\secpar \<\< \\
+  \<\< (s_\idm, \agentsecret) \gets (s, 1/s) \<\< \\
+  \< \sendmessageleft{length=1.5cm,top=$s_\idm$}\<\< \sendmessageright{length=1.5cm,top={$\agentsecret, \login, \pseudo$}}\\
+  \<\<  \<\< \texttt{store } \dict[\login, \pseudo] = \agentsecret\pclb
+\pcintertext[dotted]{Consent} \\
+  \<\< r \sample \ZZ_q \<\< \\
+  \<\< m \gets H(\pseudo, att) \<\< \\
+  \<\< Q \gets m\cdot Y + r\cdot G \<\< \\
+  \< \sendmessageleft{length=1.5cm,top=$Q$} \<\< \\
+  d \gets \ZZ^*_q \< \<  \<\< \\
+  R' \gets d \cdot G\< \<  \<\< \\
+  R \gets d \cdot(x \cdot G + Q +  s_\idm \cdot G') \< \<  \<\< \\
+  \< \sendmessageright{length=1.5cm,top={$R' , R$}} \<\< \\
+  \<\< c \gets \ZZ^*_p \<\< \\
+  \<\< S' \gets c \cdot R' \<\< \\
+  \<\< S \gets c\cdot (R - r \cdot R') \<\< \\
+  \< \<\< \sendmessageright{length=1.5cm,top={$(\login, \pseudo, att, S, S')$}}\\
+  \<\<  \<\< \pcif (\login,\pseudo) \in \dict\\
+  \<\<  \<\< \t \pcabort\\
+  \<\<  \<\< \consent \gets \\
+  \<\<  \<\<\dict[\login, \pseudo]\cdot (S', S)\\
+  \<\<  \<\< ??? \\
+  % \<\<  \<\< e(\consent, \GGhat) \overset{?}{=} e(H(\pseudo, att), \hat{X})\\  
+}
+\caption{Consent Protocol Construction with Algebraic MACs}
+\label{prot:construction_simple_alg_mac}
+\end{figure*}
+
+
+\abdullah{I refer to the construction via \texttt{$\backslash$construction} until we find a specific name.}
+\begin{theorem}
+    For any adversary $\adversary{A}$ bounded to $q_H$ queries to the random oracle and $q$ queries to the $\mathsf{OOrder}$, \construction is secure under $\cuf_\idm$ with:
+    \begin{align*}
+    \advtg_\adversary{A}^{\cuf_\idm}(\secpar, \mathcal{D})  \le \frac{q_H^2}{2\cdot |\GGhat|} + \frac{1+q}{2^{\mathcal{D}_{min}}}
+\end{align*}
+    
+\end{theorem}
+
+\begin{proof}
+    For the games we construct during the proof, we denote the $i$-$th$ game with $\mathsf{G}i$. We set $\mathsf{G0} = \cuf_\idm$.
+
+    \begin{itemize}
+        \item \textsf{G1} (Figure \ref{game:cuf_idmg1}): we remove the \textsf{OEnroll} oracle. We run the enrollment of $\login^*$ with $\pseudo^*$ directly inside the game. For the rest, since any $\agentsecret$ can be registered using the \textsf{OCorruptEnroll} oracle, we assume that all enrollments are done using \textsf{OCorruptEnroll} instead of \textsf{OEnroll}. We have, 
+        \begin{align*}
+            \advtg_\adversary{A}^{\mathsf{G0}} = \advtg_\adversary{A}^{\mathsf{G1}}\\
+        \end{align*}
+
+\begin{figure*}
+\scalebox{.9}{
+\begin{pchstack}[center, space=0.2cm, boxed]
+    \begin{pcvstack}
+    \procedure[linenumbering]{$\mathsf{G1}(\adversary{A, D})$}{
+        \mathsf{cst} \gets \{\} \pccomment{challenge state}\\
+        \pk_\idm, \mathsf{st}, \login^* \gets \adversary{A}_1(\secparam)\\
+        \pseudo^* \sample \mathcal{D}\\
+        \pcbox{\mathsf{enrolled} \gets \emptyset \cup \login^*}\\
+         \pcbox{(s_\idm^*, \agentsecret) \gets \mathsf{Enroll}(\pseudo^*)}\\
+         \pcbox{\dict[(\login^*, \pseudo^*)] \gets \agentsecret}\\
+        \adversary{A}_2^{oracles}(\mathsf{s_\idm^*, st}) \rightarrow  att^*, \consent^*\\
+        \pcif \mathsf{Verify}(\pk_\idm, \login^*, \pseudo^*, att^*, \consent^*):\\
+            \t\pcreturn 1\\
+        \pcreturn 0
+    }
+    \procedure[linenumbering]{$\mathsf{OCorruptEnroll}(\login, \pseudo, \agentsecret)$}{
+         \pcif \login \in \mathsf{enrolled}\\
+         \t \textbf{abort}\\
+         \mathsf{enrolled} \gets \mathsf{enrolled} \cup \login\\
+         \dict[(\login, \pseudo)] \gets \agentsecret\\
+         \pcreturn \bot
+    }
+    
+    \procedure[linenumbering]{$\mathsf{OCommit}(sid, \response)$}{
+         \pcif sid \notin \mathsf{cst}\\
+         \t \textbf{abort}\\
+         \order \gets \mathsf{cst}[sid].\state^{-1}\cdot \response\\
+         %\order \gets \mathsf{Commit}(\mathsf{cst}[sid].\state, \response)\\
+         \pcif (\login^*, \pseudo^*) \notin \dict\\
+            \t \pcabort\\
+        \consent \gets \dict[(\login^*, \pseudo^*)]\cdot \order\\
+        \pcif e(\consent, \hat{\mathbb{G}}) = e(H(\pseudo^*, \mathsf{cst}[sid].att), \pk_\idm)\\
+        \t \pcreturn \true\\
+        \pcreturn \false
+    }
+     \procedure[linenumbering]{$\mathsf{OOrder}(\login, \pseudo, att, \order)$}{
+        \consent \gets \signserv(\dict[(\login,\pseudo)], \pseudo, att, \order)\\
+        \pcreturn \consent
+    }
+    \end{pcvstack}
+    \begin{pcvstack}
+    \procedure[linenumbering]{$\mathsf{OLaunch}(sid, att)$}{
+         \pcif  sid \notin \mathsf{cst}\\
+         \t \textbf{abort}\\
+         r \sample \bin^\secpar\\
+         \query \gets r\cdot H(\pseudo^*, att)\\
+         %\query, \state \gets \mathsf{Launch}(\pseudo^*, att)\\
+         \mathsf{cst}[sid].att \gets att\\
+         \mathsf{cst}[sid].\state \gets r\\
+         \pcreturn \query
+    }
+    \end{pcvstack}
+    \end{pchstack}
+}
+\caption{$\cuf_\idm$ \textsf{G1}}
+\label{game:cuf_idmg1}
+\end{figure*}
+
+        \item \textsf{G2}: We remove the \textsf{OCommit} oracle. Note that the \textsf{OCommit} returns $\true$ if and only if $e(sA\cdot r^{-1}\cdot \response, \GGhat) = e(H(\pseudo^*, att), \pk_\idm)$, which is equivalent to $e(\response, \GGhat) = e(s_\idm\cdot\query, \pk_\idm)$  this behaviour can be simulated by the adversary itself. Therefore, we have:
+        \begin{align*}
+            \advtg_\adversary{A}^{\mathsf{G1}} = \advtg_\adversary{A}^{\mathsf{G2}}\\
+        \end{align*}
+
+    \begin{figure*}
+\scalebox{.9}{
+\begin{pchstack}[center, space=0.2cm, boxed]
+    \begin{pcvstack}
+    \procedure[linenumbering]{$\mathsf{G2}(\adversary{A, D})$}{
+        \mathsf{cst} \gets \{\} \pccomment{challenge state}\\
+        \pk_\idm, \mathsf{st}, \login^* \gets \adversary{A}_1(\secparam)\\
+        \pseudo^* \sample \mathcal{D}\\
+        \mathsf{enrolled} \gets \{\login^*\}\\
+         (s_\idm^*, \agentsecret) \gets \mathsf{Enroll}(\pseudo^*)\\
+         \dict[(\login^*, \pseudo^*)] \gets \agentsecret\\
+        \adversary{A}_2^{oracles}(\mathsf{s_\idm^*, st}) \rightarrow  att^*, \consent^*\\
+        \pcif \mathsf{Verify}(\pk_\idm, \login^*, \pseudo^*, att^*, \consent^*):\\
+            \t\pcreturn 1\\
+        \pcreturn 0
+    }
+    \procedure[linenumbering]{$\mathsf{OCorruptEnroll}(\login, \pseudo, \agentsecret)$}{
+         \pcif \login \in \mathsf{enrolled}\\
+         \t \textbf{abort}\\
+         \mathsf{enrolled} \gets \mathsf{enrolled} \cup \login\\
+         \dict[(\login, \pseudo)] \gets \agentsecret\\
+         \pcreturn \bot
+    }
+    
+    \procedure[linenumbering]{$\mathsf{OCommit}(sid, \response)$}{
+        \pcif sid \notin \mathsf{cst}\\
+        \t \pcabort\\
+        \pccomment{\text{$\adversary{A}_2$ Simulation}}\\
+        \pcbox{\pcif e(s_\idm^*\cdot\query, \pk_\idm) = e(\response, \GGhat)}\\
+            \pcbox{\t\pcreturn \true}\\
+        \pcbox{\pcreturn \false}
+    }
+     \procedure[linenumbering]{$\mathsf{OOrder}(\login, \pseudo, att, \order)$}{
+        \consent \gets \signserv(\dict[(\login,\pseudo)], \pseudo, att, \order)\\
+        \pcreturn \consent
+    }
+    \end{pcvstack}
+    \begin{pcvstack}
+    \procedure[linenumbering]{$\mathsf{OLaunch}(sid, att)$}{
+         \pcif  sid \notin \mathsf{cst}\\
+         \t \textbf{abort}\\
+         r \sample \bin^\secpar\\
+         \query \gets r\cdot H(\pseudo^*, att)\\
+         %\query, \state \gets \mathsf{Launch}(\pseudo^*, att)\\
+         \mathsf{cst}[sid].att \gets att\\
+         \mathsf{cst}[sid].\state \gets r\\
+         \pcreturn \query
+    }
+    \end{pcvstack}
+    \end{pchstack}
+}
+\caption{$\cuf_\idm$ \textsf{G2}}
+\label{game:cuf_idmg2}
+\end{figure*}
+
+        \item \textsf{G3}: We remove the $\mathsf{OLaunch}$ oracle. In $\mathsf{OLaunch}$, the $\query$ is equal to $r\cdot H(\pseudo^*, att)$ where $r$ is uniformly sampled from $\ZZ_q$. The resulting value (uniformly random group element) can be simulated by $\adversary{A}_2$. Hence, we have:
+        \begin{align*}
+            \advtg_\adversary{A}^{\mathsf{G2}} = \advtg_\adversary{A}^{\mathsf{G3}} 
+        \end{align*}
+
+    \begin{figure*}
+\scalebox{.9}{
+\begin{pchstack}[center, space=0.2cm, boxed]
+    \begin{pcvstack}
+    \procedure[linenumbering]{$\mathsf{G3}(\adversary{A, D})$}{
+        \pk_\idm, \mathsf{st}, \login^* \gets \adversary{A}_1(\secparam)\\
+        \pseudo^* \sample \mathcal{D}\\
+        \mathsf{enrolled} \gets \{ \login^* \}\\
+         (s_\idm^*, \agentsecret) \gets \mathsf{Enroll}(\pseudo^*)\\
+         \dict[(\login^*, \pseudo^*)] \gets \agentsecret\\
+        \adversary{A}_2^{oracles}(\mathsf{s_\idm^*, st}) \rightarrow  att^*, \consent^*\\
+        \pcif \mathsf{Verify}(\pk_\idm, \login^*, \pseudo^*, att^*, \consent^*):\\
+            \t\pcreturn 1\\
+        \pcreturn 0
+    }
+    \procedure[linenumbering]{$\mathsf{OCorruptEnroll}(\login, \pseudo, \agentsecret)$}{
+         \pcif \login \in \mathsf{enrolled}\\
+         \t \textbf{abort}\\
+         \mathsf{enrolled} \gets \mathsf{enrolled} \cup \login\\
+         \dict[(\login, \pseudo)] \gets \agentsecret\\
+         \pcreturn \bot
+    }
+
+     \procedure[linenumbering]{$\mathsf{OOrder}(\login, \pseudo, att, \order)$}{
+        \pcif (\login, \pseudo) \notin \dict\\
+            \t \pcabort\\
+        \consent \gets \dict[(\login, \pseudo)]\cdot \order\\
+        \pcif e(\consent, \hat{\mathbb{G}}) = e(H(\pseudo, att), \pk_\idm)\\
+        \t \pcreturn \consent\\
+        \pcreturn \bot
+    }
+    \end{pcvstack}
+    \begin{pcvstack}
+    \procedure[linenumbering]{$\mathsf{OLaunch}(sid, att)$}{
+         \pcbox{\query \sample \GGhat}\\
+         \pcbox{\pcreturn \query}
+    }
+    \end{pcvstack}
+    \end{pchstack}
+}
+\caption{$\cuf_\idm$ \textsf{G3}}
+\label{game:cuf_idmg3}
+\end{figure*}
+        \item \textsf{G4}: We introduce the \textsf{OTest} Oracle which checks whether a given $\guess$ is equal to $\pseudo^*$. We utilize this oracle to rewrite $\mathsf{OOrder}$. There are three cases:
+        \begin{enumerate}
+            \item If $\login = 
+        \login^*$ and $\pseudo = \pseudo^*$ the adversary can simulate $\dict[(\login^*, \pseudo^*)]$ by computing $(s_\idm^*)^{-1}$ 
+            \item If the entry $(\login^*, \pseudo)$ does not exists in $\dict$, we abort.
+            \item Otherwise, $\login$ is a client enrolled via $\mathsf{OCorruptEnroll}$ and the adversary can fetch $\dict[(\login, \pseudo)]$ by locally storing their $\mathsf{OCorruptEnroll}$ queries.
+        \end{enumerate} 
+        This rewrite of $\mathsf{OOrder}$ lets us remove the $\mathsf{OOrder}$ and $\mathsf{OCorruptEnroll}$ oracles as they can now be simulated by $\adversary{A}$. We also remove the $\mathsf{enrolled}$ set which becomes useless. Since the utility of $\mathsf{OOrder}$ remains unchanged, we have:
+        \begin{align*}
+            \advtg_\adversary{A}^{\mathsf{G3}} = \advtg_\adversary{A}^{\mathsf{G4}}\\
+        \end{align*}
+        
+
+    \begin{figure*}
+\scalebox{.9}{
+\begin{pchstack}[center, space=0.2cm, boxed]
+    \begin{pcvstack}
+    \procedure[linenumbering]{$\mathsf{G4}(\adversary{A, D})$}{
+        \pk_\idm, \mathsf{st}, \login^* \gets \adversary{A}_1(\secparam)\\
+        \pseudo^* \sample \mathcal{D}\\
+        \mathsf{enrolled} \gets \{ \login^* \}\\
+         (s_\idm^*, \agentsecret) \gets \mathsf{Enroll}(\pseudo^*)\\
+        \adversary{A}_2^{oracles}(\mathsf{s_\idm^*, st}) \rightarrow  att^*, \consent^*\\
+        \pcif \mathsf{Verify}(\pk_\idm, \login^*, \pseudo^*, att^*, \consent^*):\\
+            \t\pcreturn 1\\
+        \pcreturn 0
+    }
+     \procedure[linenumbering]{$\mathsf{OOrder}(\login, \pseudo, att, \order)$}{
+     \pccomment{\text{$\adversary{A}_2$ Simulation}}\\
+        \pcif \login = \login^*\\
+            \t \pcif \mathsf{OTest(\pseudo)}\\
+                \t\t \agentsecret \gets (s_\idm^*)^{-1}\\
+                \t\t\consent \gets \agentsecret\cdot \order\\
+                \t\t\pcif e(\consent, \hat{\mathbb{G}}) = e(H(\pseudo, att), \pk_\idm)\\
+                \t\t\t \pcreturn \consent\\
+                \t\t\pcreturn \bot\\
+        \pcif (\login, \pseudo) \notin \dict\\
+            \t \pcabort\\
+        \consent \gets \dict[(\login, \pseudo)]\cdot \order\\
+        \pcif e(\consent, \hat{\mathbb{G}}) = e(H(\pseudo, att), \pk_\idm)\\
+        \t \pcreturn \consent\\
+        \pcreturn \bot
+    }
+    \end{pcvstack}
+    \begin{pcvstack}
+    \procedure[linenumbering]{$\mathsf{OTest}(\guess)$}{
+         \pcbox{\pcreturn \mathbbm{1}_{\guess = \pseudo^*}}
+    }
+
+    \procedure[linenumbering]{$\mathsf{OCorruptEnroll}(\login, \pseudo, \agentsecret)$}{
+         \pcif \login \in \mathsf{enrolled}\\
+         \t \textbf{abort}\\
+         \mathsf{enrolled} \gets \mathsf{enrolled} \cup \login\\
+         \dict[(\login, \pseudo)] \gets \agentsecret\\
+         \pcreturn \bot
+    }
+    \end{pcvstack}
+    \end{pchstack}
+}
+\caption{$\cuf_\idm$ \textsf{G4}}
+\label{game:cuf_idmg3}
+\end{figure*}
+
+\item \textsf{G5}: We add an additional condition for making sure the correct query has been made to the random oracle. Hence, we have, we denote the number of queries to the random oracle by $q_H$:
+        \begin{align*}
+            \advtg_\adversary{A}^{\mathsf{G4}} &\le \advtg_\adversary{A}^{\mathsf{G5}}  + \frac{1}{|\GGhat|} + \frac{q_H\cdot(q_H-1)}{2\cdot |\GGhat|}\\
+            &\le \advtg_\adversary{A}^{\mathsf{G5}} + \frac{q_H^2}{2\cdot |\GGhat|}
+        \end{align*}
+
+
+%We remove the $\mathsf{OOrder}$ oracle. In $\mathsf{OOrder}$to forge a valid consent for $\login^*, \pseudo^*$. The probability of guessing $\pseudo^*$, is $\frac{1}{2^{\mathcal{D}_{min}}}$. Moreover, if $\login \neq \login^*$ and $\login \in \dict$ the resulting $\consent$ can be directly simulated by the adversary since it is equal to $\agentsecret\cdot\order$ for some $s_A$ known by the adversary (since each enrollment for $\login \neq \login^*$ is done using \textsf{OCorruptEnroll}).
+
+    \begin{figure*}
+\scalebox{.9}{
+\begin{pchstack}[center, space=0.2cm, boxed]
+    \begin{pcvstack}
+    \procedure[linenumbering]{$\mathsf{G5}(\adversary{A, D})$}{
+        \pk_\idm, \mathsf{st}, \login^* \gets \adversary{A}_1(\secparam)\\
+        \pseudo^* \sample \mathcal{D}\\
+         (s_\idm^*, \agentsecret) \gets \mathsf{Enroll}(\pseudo^*)\\
+        \adversary{A}_2^{oracles}(\mathsf{s_\idm^*, st}) \rightarrow  att^*, \consent^*\\
+        \pcif \text{$H(\pseudo^*, att^*)$ was queried } \land\\
+        e(\consent^*, \GGhat) = e(H(\pseudo^*, att^*), \pk_\idm):\\
+            \t\pcreturn 1\\
+        \pcreturn 0
+    }
+    \end{pcvstack}
+    \begin{pcvstack}
+    \procedure[linenumbering]{$\mathsf{OTest}(\guess)$}{
+         \pcreturn \mathbbm{1}_{\guess = \pseudo^*}
+    }
+    \end{pcvstack}
+    \end{pchstack}
+}
+\caption{$\cuf_\idm$ \textsf{G5}}
+\label{game:cuf_idmg5}
+\end{figure*}
+
+\item \textsf{G6}: After $\adversary{A}_2$ returns $att^*, \consent^*$, we search through the queries to the random oracle $H$ indexed by the second component $att^*$. We define $H.\mathsf{queried}$ as the lazy sampling dictionary of the random oracle (accessed by $\mathsf{OH}$. We check if we find a random oracle output $h$ that satisfies $e(\consent^*, \GGhat) = e(h, \pk_\idm)$, we obtain the first component of the preimage of $h$ and check if it matches $\pseudo^*$ using the $\mathsf{OTest}$ oracle. We expand $\mathsf{Enroll}$ to observe that it does not utilize $\pseudo^*$ (hinting that it can be simulated by $\adversary{A}_2$. We also move the random selection of $\pseudo^*$ before running $\adversary{A}_1$. Since we basically rewrote $\mathsf{Enroll}$ and rewrote the verification function using $\mathsf{OTest}$, we have:
+        \begin{align*}
+            \advtg_\adversary{A}^{\mathsf{G5}} = \advtg_\adversary{A}^{\mathsf{G6}}\\
+        \end{align*}
+
+\begin{figure*}
+\scalebox{.9}{
+\begin{pchstack}[center, space=0.2cm, boxed]
+    \begin{pcvstack}
+    \procedure[linenumbering]{$\mathsf{G6}(\adversary{A, D})$}{
+        \pseudo^* \sample \mathcal{D}\\
+        \pk_\idm, \mathsf{st}, \login^* \gets \adversary{A}_1(\secparam)\\
+        \pcbox{s_\idm^* \sample \ZZ_q}\\
+        \pcbox{\agentsecret \gets (s_\idm^*)^{-1}}\\
+        \adversary{A}_2^{oracles}(\mathsf{s_\idm^*, st}) \rightarrow  att^*, \consent^*\\
+        \pcfor (\pseudo, att) \in H.\mathsf{queried}\\
+            \t \pcif att = att^*\\
+            \t\t \pcif e(\consent^*, \GGhat) = e(H.\mathsf{queried}(\pseudo, att), \pk_\idm)\\
+            \t\t\t \pcreturn \mathsf{OTest}(\pseudo)\\
+            \pcreturn 0
+    }
+    \end{pcvstack}
+    \begin{pcvstack}
+    \procedure[linenumbering]{$\mathsf{OTest}(\guess)$}{
+         \pcreturn \mathbbm{1}_{\guess = \pseudo^*}
+    }
+    \procedure[linenumbering]{$\mathsf{OH}(\pseudo, att)$}{
+    \pcif (\pseudo, att) \notin H.\mathsf{queried}\\
+    \t H.\mathsf{queried}(\pseudo, att) \sample \GGhat\\
+    \pcreturn H.\mathsf{queried}(\pseudo, att)
+    }
+    \end{pcvstack}
+    \end{pchstack}
+}
+\caption{$\cuf_\idm$ \textsf{G6}}
+\label{game:cuf_idmg5}
+\end{figure*}
+
+\item \textsf{G7}: Note that anything between line 2 to 7 can be simulated by $\adversary{A}_1$ and $\adversary{A}_2$ given access to each random oracle query and the $\mathsf{OTest}$ oracle. Hence, we merge $\adversary{A}_1$ and $\adversary{A}_2$ as $\adversary{A}$ to output $\pseudo$ as a winning condition parameter. We have: 
+        \begin{align*}
+            \advtg_\adversary{A}^{\mathsf{G6}} = \advtg_\adversary{A}^{\mathsf{G7}}
+        \end{align*}
+
+\begin{figure*}
+\begin{pchstack}[center, space=0.2cm, boxed]
+    \begin{pcvstack}
+    \procedure[linenumbering]{$\mathsf{G7}(\adversary{A, D})$}{
+        \pseudo^* \sample \mathcal{D}\\
+        \adversary{A}^{oracles}(\secparam) \rightarrow  \pseudo\\
+        \pcreturn \mathsf{OTest}(\pseudo)
+    }
+    \end{pcvstack}
+    \begin{pcvstack}
+    \procedure[linenumbering]{$\mathsf{OTest}(\guess)$}{
+         \pcreturn \mathbbm{1}_{\guess = \pseudo^*}
+    }
+    \end{pcvstack}
+    \end{pchstack}
+\caption{$\cuf_\idm$ \textsf{G7}}
+\label{game:cuf_idmg5}
+\end{figure*}
+
+\item Analysis of \textsf{G7}: Since $\pseudo^*$ is sampled from a distribution with min-entropy $\mathcal{D}_{min}$, the probability of guessing $\pseudo^*$ is bounded by $\frac{1}{2^{\mathcal{D}_{min}}}$ for each \textsf{OTest} query. Since the adversary makes 1 query to $\mathsf{OTest}$ oracle in the final simulation and $q$ queries to the $\mathsf{OTest}$ oracle to simulate each $\mathsf{OOrder}$ query, we have:
+
+\begin{align*}
+    \advtg_\adversary{A}^{\mathsf{G7}} \le \frac{1+q}{2^{\mathcal{D}_{min}}}\\
+\end{align*}
+% \begin{figure*}
+% \scalebox{.9}{
+% \begin{pchstack}[center, space=0.2cm, boxed]
+%     \begin{pcvstack}
+%     \procedure[linenumbering]{$\mathsf{G2}(\adversary{A, D})$}{
+%         \mathsf{enrolled} \gets \emptyset\\
+%         \mathsf{cst} \gets \{\} \pccomment{challenge state}\\
+%         \pk_\idm, \mathsf{st}, \login^* \gets \adversary{A}_1(\secparam)\\
+%         \pseudo^* \sample \mathcal{D}\\
+%         \mathsf{enrolled} \gets \mathsf{enrolled} \cup \login^*\\
+%          (s_\idm^*, \agentsecret) \gets \mathsf{Enroll}(\pseudo)\\
+%          \dict[(\login^*, \pseudo)] \gets \agentsecret\\
+%         \adversary{A}_2^{oracles}(\mathsf{s_\idm^*, st}) \rightarrow  att^*, \consent^*\\
+%         \pcif \mathsf{Verify}(\pk_\idm, \login^*, \pseudo^*, att^*, \consent^*):\\
+%             \t\pcreturn 1\\
+%         \pcreturn 0
+%     }
+%     \procedure[linenumbering]{$\mathsf{OCorruptEnroll}(\login, \pseudo, \agentsecret)$}{
+%          \pcif \login \in \mathsf{enrolled}\\
+%          \t \textbf{abort}\\
+%          \mathsf{enrolled} \gets \mathsf{enrolled} \cup \login\\
+%          \dict[(\login, \pseudo)] \gets \agentsecret\\
+%          \pcreturn \bot
+%     }
+    
+%     \procedure[linenumbering]{$\mathsf{OCommit}(sid, \response)$}{
+%          \pcif sid \notin \mathsf{cst}\\
+%          \t \textbf{abort}\\
+%          \order \gets \mathsf{Commit}(\mathsf{cst}[sid].\state, \response)\\
+%          \consent \gets \signserv(\dict[(\login^*, \pseudo^*)], \pseudo^*, \mathsf{cst}[sid].att, \order)\\
+%          \pcif \consent = \bot\\
+%          \t \pcreturn \false\\
+%          \pccomment{\text{adversary simulation}}\\
+%          \begin{subprocedure}%
+%         \dbox{\procedure{$\mathcal{A}$}{%
+%         \pcreturn \true\\}}
+%         \end{subprocedure}\\
+%         \pcreturn \true    
+%     }
+%      \procedure[linenumbering]{$\mathsf{OOrder}(\login, \pseudo, att, \order)$}{
+%         \consent \gets \signserv(\dict[(\login,\pseudo)], \pseudo, att, \order)\\
+%         \pcreturn \consent
+%     }
+%     \end{pcvstack}
+%     \begin{pcvstack}
+%     \procedure[linenumbering]{$\mathsf{OLaunch}(sid, att)$}{
+%          \pcif  sid \notin \mathsf{cst}\\
+%          \t \textbf{abort}\\
+%          \query, \state \gets \mathsf{Launch}(\pseudo^*, att)\\
+%          \mathsf{cst}[sid].att \gets att\\
+%          \mathsf{cst}[sid].\state \gets \state\\
+%          \pcreturn \query
+%     }
+%     \end{pcvstack}
+%     \end{pchstack}
+% }
+% \caption{$\cuf_\idm$ \textfs{G2}}
+% \label{game:cuf_idmg2}
+% \end{figure*}
+
+        
+        
+    \end{itemize}
+\end{proof}
+% Note that in this approach, if the $\idm$ colludes with $\signserv$. It can learn which $s$ belongs to which $\pseudo$. This way, the $\idm$ can impersonate the client. In order to prevent this behaviour, we construct another iteration of the same protocol by distributing the $\idm$.
+
+
+
+\begin{theorem}
+    \construction is not secure under $\cuf_\signserv$. 
+\end{theorem}
+
+\begin{proof}
+    We construct and adversary \adversary{A} (Figure \ref{game:cuf_agent_attack}) that breaks the $\cuf_\signserv$ security notion (Figure \ref{game:cuf_simple_agent}). Note that $\login^* \in \mathsf{enrolled}$, $\login^* \notin \mathsf{corrupted}$, $(\pseudo^*, att^*) \notin \mathsf{ordered}$ since $\mathsf{OLaunch}$ is never called and the Verify function returns $1$ since $r^{-1}\cdot \agentsecret\cdot \response = \sk_\idm\cdot H(\pseudo^*, att^*)$. Hence $\adversary{A}$ wins with probability $1$. 
+
+    \begin{figure*}
+\begin{pchstack}[center, space=0.2cm, boxed]
+    \begin{pcvstack}
+    \procedure[linenumbering]{$\adversary{A}$}{
+        \textsf{pick } \login^*, \login\\
+        \agentsecret^* \gets \mathsf{OEnroll}(\login^*, \pseudo^*)\\
+        \agentsecret \sample \ZZ_q\\
+        \mathsf{OCorruptEnroll}(\login, \agentsecret^{-1})\\
+        r \sample \ZZ_q\\
+        att^* \sample \ZZ_q\\
+        \query \gets r\cdot H(\pseudo^*, att^*)\\
+        \response \gets \mathsf{OCorruptCommit}(\login, \query)\\
+        \consent^* \gets r^{-1}\cdot\agentsecret\cdot\response\\
+        \pcreturn \login^*, \pseudo^*, att^*, \consent^*
+    }
+    \end{pcvstack}
+    \end{pchstack}
+\caption{\adversary{A} attacking the $\cuf_\signserv$ game.}
+\label{game:cuf_agent_attack}
+\end{figure*}
+\end{proof}
+
+
+
+\section{Protocol (Distributed \idm)}
+\subsection{Entities  (Distributed \idm)}
+In total, we have $n$ $\idm$s. We denote the $i$-th by $\idm_i$. The rest of the entities remain unchanged.
+\subsection{Interfaces (Distributed \idm)}
+We modify the interfaces related to $\idm$ as follows (the rest remains unchanged):
+
+\begin{itemize}
+    \item  $\idmskdist, \idmpkdist \gets \idm.\mathsf{Setup(\secparam)}$: $\idm$s generates their secret/public keys.
+    \item $\sk_\signserv, \pk_\signserv \gets \signserv.\mathsf{Setup}(\secparam)$:  $\signserv$ generates their secret/public keys.
+
+    \item $(\idmsdist, \bot, \dict) \gets \mathsf{Enroll}(\bot, \pseudo, \bot)$: $\client$ picks a $\pseudo$ and enrolls to an $\signserv$. The $\client$ also distributes a secret $s_{\idm_i})$ to each $\idm_i$ and a secret $\agentsecret$ to $\signserv$. The $\signserv$ creates a dictionary $\dict$ with key $\pseudo$ and value $\agentsecret$, outputs the $\dict$.
+
+    \item $(\bot, \consent, \consent) \gets \mathsf{Consent}((\idmsdist, \idmskdist), (\pseudo, att), \dict)$: $\client$ gives a consent to $\signserv$ to be used on attribute $att$ under the pseudonym $\pseudo$. The $\signserv$ and $\client$ computes $\consent$.
+\end{itemize}
+
+\subsection{Security claims (Distributed $\idm$)}
+\begin{itemize}
+    \item \textbf{Unforgeability} We model the scenario where an adversary tries to forge a valid consent for a different attribute under the same $\pseudo$.
+
+    \begin{definition}[Consent Unforgeability (Simple)]
+    A \primitive scheme is unforgeable if for any $\ppt$ adversary \adversary{A}, we have
+
+    \begin{align*}
+    \Pr[\cuf\idm(\adversary{A}) \rightarrow 1] \le \negl
+\end{align*}
+
+where the $\cuf\idm$ game is defined as follows:
+    \begin{pchstack}[center, space=0.2cm, boxed]
+    \begin{pcvstack}
+    \procedure[linenumbering]{$\cuf\idm(\adversary{A})$}{
+        \mathsf{enrolled} \gets \emptyset\\
+        \mathsf{queried} \gets \emptyset\\
+        \mathsf{corrupted} \gets \emptyset\\
+        (\idmskdist, \idmpkdist),  \gets \idm.\mathsf{Setup}(\secparam)\\
+        (\sk_\signserv,\pk_\signserv) \gets \signserv.\mathsf{Setup}(\secparam)\\
+        \adversary{A}^{oracles}(\idmpkdist,\pk_\signserv) \rightarrow \pseudo^*, att^*, \consent^*\\
+        \consent' \gets \mathsf{Show}(\bot, (\pseudo^*, att^*), \bot)\\
+        \pcif \consent' = \consent^* \land (\pseudo^*, att^*) \notin \mathsf{queried} :\\
+            \t\pcreturn 1\\
+        \pcreturn 0
+    }
+    \procedure[linenumbering]{$\mathsf{OEnroll}(\pseudo)$}{
+         \pcif \pseudo \in \mathsf{enrolled}\\
+         \t \textbf{abort}\\
+         \mathsf{enrolled} \gets \mathsf{enrolled} \cup \pseudo\\
+         (s_\idm, \agentsecret) \gets \mathsf{Enroll}(\bot, \pseudo, \bot)\\
+         \pcreturn (s_\idm, \agentsecret) 
+    }
+    \procedure[linenumbering]{$\mathsf{OConsent}(\pseudo, att, s_\idm, (\agentsecret, \dict))$}{
+         \pcif \pseudo \notin \mathsf{enrolled}\\
+         \t \textbf{abort}\\
+         \consent \gets \mathsf{Consent}((\sk_\idm ,s_\idm), (\pseudo, att), (\agentsecret, \dict))\\
+         \mathsf{queried} \gets \mathsf{queried} \cup (\pseudo, att)\\
+         \pcreturn \consent
+    }
+    \procedure[linenumbering]{$\mathsf{OCorrupt}(i)$}{
+         \pcif \#\mathsf{corrupted} = n:\\
+         \t \pcabort\\
+         \mathsf{corrupted} \gets \mathsf{corrupted} \cup \sk_{\idm_i}\\
+         \pcreturn \sk_{\idm_i}
+    }
+    \end{pcvstack}
+    \end{pchstack}
+
+\end{definition}
+
+  \item \textbf{Unlinkability} We model the scenario where the adversary should corrupt all the $\idm$'s to link $\pseudo$ and $\consent$.
+
+\begin{definition}[Unlinkability]
+A \primitive scheme is unlinkable if for any \ppt adversary \adversary{A} , we have
+
+\begin{align*}
+    \Pr[\unlinkidm(\adversary{A}) \rightarrow 1] \le \frac{1}{2} + \negl
+\end{align*}
+
+where the $\unlinkidm$ game is defined as follows:
+
+\begin{pchstack}[center, space=0.2cm, boxed]
+\begin{pcvstack}
+
+    \procedure[linenumbering]{$\unlinkidm(\adversary{A})$}{
+        \mathsf{corrupted} \gets \emptyset\\
+        (\sk_\idm, \pk_\idm),  \gets \idm.\mathsf{Setup}(\secparam)\\
+        (\sk_{\signserv_i},\pk_{\signserv_i}) \gets \signserv.\mathsf{Setup}(\secparam)\\
+        \text{pick } \pseudo_0, \pseudo_1, att_0, att_1\\
+        \idmsdistzero, \agentsecret^0 \gets  \mathsf{OEnroll}(\pseudo_0)\\
+        \idmsdistone, \agentsecret^1 \gets\mathsf{OEnroll}(\pseudo_1)\\
+        \consent_0 \gets \mathsf{OConsent}(\pseudo_0, att_0, \idmsdistzero, \agentsecret^0)\\
+        \consent_1 \gets \mathsf{OConsent}(\pseudo_1, att_1, \idmsdistone, \agentsecret^1)\\
+        b \sample \bin\\
+        \adversary{A}^{oracles}(\pk_\idm, \pk_{\signserv_i}, \pseudo_0, \pseudo_1, \consent_b) \rightarrow b'\\
+        \pcif b = b'\\
+            \t\pcreturn 1\\
+        \pcreturn 0
+    }
+    \procedure[linenumbering]{$\mathsf{OCorrupt}(i)$}{
+        \pcif \#\mathsf{corrupted} = n\\
+            \t \pcabort\\
+        \mathsf{corrupted} \gets \mathsf{corrupted} \cup \sk_{\idm_i}\\
+        \pcreturn \sk_{\idm_i}
+    }
+    \procedure[linenumbering]{$\mathsf{OEnroll}(\pseudo)$}{
+         \pcif \pseudo \in \mathsf{enrolled}\\
+         \t \textbf{abort}\\
+         \mathsf{enrolled} \gets \mathsf{enrolled} \cup \pseudo\\
+         (\idmsdist, \agentsecret) \gets \mathsf{Enroll}(\bot, \pseudo, \bot)\\
+         \pcreturn (\idmsdist, \agentsecret) 
+    }
+    \procedure[linenumbering]{$\mathsf{OConsent}(\pseudo, att,\idmsdist, (\agentsecret, \dict))$}{
+         \pcif \pseudo \notin \mathsf{enrolled}\\
+         \t \textbf{abort}\\
+         \consent \gets \mathsf{Consent}((\idmskdist ,\idmsdist), (\pseudo, att), (\agentsecret, \dict))\\
+         \mathsf{queried} \gets \mathsf{queried} \cup (\pseudo, att)\\
+         \pcreturn \consent
+    }
+
+
+\end{pcvstack}
+
+
+\end{pchstack}
+
+\end{definition}
+
+\end{itemize}
+\subsection{Construction (Distributed $\idm$)}
+We extend the previous constuction with a distributed $\idm$. Here the $\idm$s jointly compute the value $s\cdot x\cdot Q$ by using their own secrets.
+
+
+\subsubsection{Setup (Distributed $\idm$)}
+\begin{itemize}
+    \item Generate $\GGhat$ to be used by all $\idm$s.
+    \item $(x_i, \hat{X}_i) \gets \idm_i.\mathsf{Setup}(\secparam):$ Generate $x_i$. Return $x_i$ and $\hat{X}_i \gets x_i\cdot \GGhat$
+    \item $(a, A) \gets \signserv.\mathsf{Setup}(\secparam):$ Generate $\GG$ and $a$. Return $a$ and $A \gets a\cdot \GG$
+\end{itemize}
+
+
+\subsubsection{Enrolment (Distributed $\idm$)}
+See Fig. \ref{prot:enrolment_distidm}.
+\begin{figure*}[h!]
+\pseudocodeblock[] 
+{
+ \idm  \<\< \client  \<\< \signserv(\dict)  \\
+  \<\< \text{pick } \mathsf{pseudo} \<\< \\
+  \< \<\< \sendmessageright{length=1.5cm,top=$\mathsf{pseudo}$}\\
+  \<\< s \sample \bin^\secpar \<\< \\
+  \<\< [s]_i \sample \mathsf{Share}(s) \<\< \\
+  \< \sendmessageleft{length=1.5cm,top=$[s]_i$}\<\< \sendmessageright{length=1.5cm,top=$1/s$}\\
+  \<\<  \<\< \texttt{store } \dict[\pseudo] = 1/s\\
+}
+\caption{Enrolment (Distributed \idm)}
+\label{prot:enrolment_distidm}
+\end{figure*}
+
+\subsubsection{Consent (Distributed \idm)}
+ See Fig. \ref{prot:consent_distidm}.
+\begin{figure*}[h]
+\pseudocodeblock[xshift=-50pt] 
+{
+ \idm_i(x_i, [s]_i)  \<\< \client(\pseudo, att)  \<\< \signserv(1/s, \dict)  \\
+  \<\< r \sample \bin^\secpar \<\< \\
+  \<\< Q \gets r\cdot H(\pseudo, att) \<\< \\
+  \< \sendmessageleft{length=1.5cm,top=$Q$} \<\< \\
+  \texttt{MPC Compute:} \< \<  \<\< \\
+  \t R \gets s \cdot x \cdot Q \< \<  \<\< \\
+  \< \sendmessageright{length=1.5cm,top=$R$} \<\< \\
+  \<\< S \gets (1/r)\cdot R \<\< \\
+  \< \<\< \sendmessageright{length=1.5cm,top={$(\pseudo, att, S)$}}\\
+  \<\<  \<\< \pcif \pseudo \in \dict\\
+  \<\<  \<\< \t \pcabort\\
+  \<\<  \<\< \consent \gets \dict[\pseudo]\cdot S\\
+  % \<\<  \<\< \consent \gets \mathsf{Reconstruct}(\{[\consent]_i\}_{i\in [n]})\\
+  \<\<  \<\< e(\consent, \GGhat) \overset{?}{=} e(H(\pseudo, att), \sum_{i=1}^N\hat{X}_i)\\  
+}
+\caption{Consent (Distributed \idm) for $att$ under $\pseudo$}
+\label{prot:consent_distidm}
+\end{figure*}
+
+
+\newpage
+
+
+
+
+\abdullah{Notes (Old):
+
+If IdM is honest and agent is corrupted, (assuming the binding to Xhat is solved), the unforgeability of the consent should reduce to the unforgeability of the token.
+
+If IdM is corrupted and the agent is honest, the scheme can be broken if IdM figures out what is pseudo. Here, an additional password could be useful.
+
+If IdM is honest-but-curious and agent is malicious, they cannot link their views. (Note that agent is quite passive in the above protocol so being malicious and honest-but-curious are the same.)
+
+If IdM is malicious and collude with agent, he could send some garbage R and see which token was incorrect to identify pseudo.
+
+We could enforce IdM being at most malicious-but-curious by making IdM prove that R is correct. The problem is that it related with a secret s that the user does not want to store. So the best would be to make IdM remind the user of how to verify something related to s but I am not sure how to do. We could register s.G, use a DLEQ proof, and add a signature of s.G by the user...
+
+}
+
+\section{Example Scenario - Signing Service}
+
+\begin{enumerate}
+    \item $\client$ is the user of the electronic signature application.
+    \item $\ca$ is the Certificate Authority which has a business contract with PDF readers and generates certificates for the users signing keys to be embedded in the PDFs.
+    \item $\idm$ is one of the main identity providers that user can log-in to receive access tokens.
+    \item $\app$ is the software which inserts the signatures into PDF documents accordingly.
+    \item $\signserv$ is the service provider which signs the hash of the documents with the corresponding signing keys of the users. To provide unlinkability and other security properties, we use a service provider distributed to $n$ different parties.
+    \item $\judge$ is the entity that resolves complaints on the consent protocol.
+\end{enumerate}
+
+\section{Example Scenario - Key Storage}
+
+\begin{enumerate}
+    \item $\client$ is the user of the electronic signature application.
+    \item $\idm$ is one of the main identity providers that user can log-in to receive access tokens.
+    \item $\mathsf{StorageS}$ is the service provider which stores the keys of the $\client$.
+    \item $\mathsf{Agent}$ is the proxy for which the \client may request to start a recovery procedure from $\mathsf{StorageS}$.
+    \item $\judge$ is the entity that resolves complaints on the consent protocol.
+\end{enumerate}
