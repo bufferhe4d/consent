@@ -237,19 +237,19 @@ See Fig. \ref{prot:construction_simple}.
  \pcintertext[dotted]{Enroll} \\
   \<\< \text{pick } \login\<\< \\
   \<\< \text{sample } \pseudo \sample \mathcal{D}\<\< \\
-  \<\< s \sample \ZZ_q \<\< \\
+  \<\< s \sample \bin^\secpar \<\< \\
   \<\< (s_\idm, \agentsecret) \gets (s, 1/s) \<\< \\
-  \< \sendmessageleft{length=1.5cm,top=$s_\idm$}\<\< \sendmessageright{length=1.5cm,top={$\agentsecret, \login, \pseudo$}}\\
+  \< \sendmessageleft{length=1.5cm,top={$s_\idm$}}\<\< \sendmessageright{length=1.5cm,top={$\agentsecret, \login, \pseudo$}}\\
   \<\<  \<\< \texttt{store } \dict[\login, \pseudo] = \agentsecret\pclb
 \pcintertext[dotted]{Consent} \\
-  \<\< r \sample \ZZ_q \<\< \\
+  \<\< r \sample \ZZ_p^* \<\< \\
   \<\< Q \gets r\cdot H(\pseudo, att) \<\< \\
   \< \sendmessageleft{length=1.5cm,top=$Q$} \<\< \\
   R \gets s_\idm \cdot x \cdot Q \< \<  \<\< \\
   \< \sendmessageright{length=1.5cm,top=$R$} \<\< \\
   \<\< S \gets (1/r)\cdot R \<\< \\
   \< \<\< \sendmessageright{length=1.5cm,top={$(\login, \pseudo, att, S)$}}\\
-  \<\<  \<\< \pcif (\login,\pseudo) \in \dict\\
+  \<\<  \<\< \pcif (\login,\pseudo) \notin \dict\\
   \<\<  \<\< \t \pcabort\\
   \<\<  \<\< \consent \gets \dict[\login, \pseudo]\cdot S\\
   % \<\<  \<\< \consent \gets \mathsf{Reconstruct}(\{[\consent]_i\}_{i\in [n]})\\
@@ -262,32 +262,34 @@ See Fig. \ref{prot:construction_simple}.
 \begin{figure*}
 \pseudocodeblock[xshift=-65pt] 
 {
- \idm((x, y), G, G')  \<\< \client(Y, G)  \<\< \signserv(\dict)\pclb
+ \idm((x, y), G, X, Z)  \<\< \client(Y, G)  \<\< \signserv(\dict)\pclb
  \pcintertext[dotted]{Enroll} \\
   \<\< \text{pick } \login\<\< \\
   \<\< \text{sample } \pseudo \sample \mathcal{D}\<\< \\
-  \<\< s \sample \bin^\secpar \<\< \\
-  \<\< (s_\idm, \agentsecret) \gets (s, 1/s) \<\< \\
-  \< \sendmessageleft{length=1.5cm,top=$s_\idm$}\<\< \sendmessageright{length=1.5cm,top={$\agentsecret, \login, \pseudo$}}\\
-  \<\<  \<\< \texttt{store } \dict[\login, \pseudo] = \agentsecret\pclb
+  \<\< s_\idm \sample \ZZ_p^* \<\< \\
+  \<\< \agentsecret \gets H(ID, s_\idm) \<\< \\
+  %\<\< (s_\idm, \agentsecret) \gets (s, 1/s) \<\< \\
+  \< \sendmessageleft{length=1.5cm,top={$ID, s_\idm$}}\<\< \sendmessageright{length=1.5cm,top={$\agentsecret, \login, \pseudo$}}\\
+  \texttt{store } ID \<\<  \<\< \texttt{store } \dict[\login, \pseudo] = \agentsecret\pclb
 \pcintertext[dotted]{Consent} \\
-  \<\< r \sample \ZZ_q \<\< \\
+  \<\< r \sample \ZZ_p^* \<\< \\
   \<\< m \gets H(\pseudo, att) \<\< \\
   \<\< Q \gets m\cdot Y + r\cdot G \<\< \\
   \< \sendmessageleft{length=1.5cm,top=$Q$} \<\< \\
-  d \gets \ZZ^*_q \< \<  \<\< \\
+  d \gets \ZZ^*_p \< \<  \<\< \\
   R' \gets d \cdot G\< \<  \<\< \\
-  R \gets d \cdot(x \cdot G + Q +  s_\idm \cdot G') \< \<  \<\< \\
+  R \gets d \cdot(X + Q +  H(ID, s_\idm) \cdot Z) \< \<  \<\< \\
   \< \sendmessageright{length=1.5cm,top={$R' , R$}} \<\< \\
   \<\< c \gets \ZZ^*_p \<\< \\
   \<\< S' \gets c \cdot R' \<\< \\
   \<\< S \gets c\cdot (R - r \cdot R') \<\< \\
   \< \<\< \sendmessageright{length=1.5cm,top={$(\login, \pseudo, att, S, S')$}}\\
-  \<\<  \<\< \pcif (\login,\pseudo) \in \dict\\
+  \<\<  \<\< \pcif (\login,\pseudo) \notin \dict\\
   \<\<  \<\< \t \pcabort\\
   \<\<  \<\< \consent \gets \\
   \<\<  \<\<\dict[\login, \pseudo]\cdot (S', S)\\
-  \<\<  \<\< ??? \\
+  \<\<  \<\< e(S, \GGhat) \overset{?}{=} \\
+  \<\<  \<\< e(S', \hat{X} + m\cdot \hat{Y}+\agentsecret\cdot \hat{Z}) \\
   % \<\<  \<\< e(\consent, \GGhat) \overset{?}{=} e(H(\pseudo, att), \hat{X})\\  
 }
 \caption{Consent Protocol Construction with Algebraic MACs}
@@ -432,7 +434,7 @@ See Fig. \ref{prot:construction_simple}.
 \label{game:cuf_idmg2}
 \end{figure*}
 
-        \item \textsf{G3}: We remove the $\mathsf{OLaunch}$ oracle. In $\mathsf{OLaunch}$, the $\query$ is equal to $r\cdot H(\pseudo^*, att)$ where $r$ is uniformly sampled from $\ZZ_q$. The resulting value (uniformly random group element) can be simulated by $\adversary{A}_2$. Hence, we have:
+        \item \textsf{G3}: We remove the $\mathsf{OLaunch}$ oracle. In $\mathsf{OLaunch}$, the $\query$ is equal to $r\cdot H(\pseudo^*, att)$ where $r$ is uniformly sampled from $\ZZ_p^*$. The resulting value (uniformly random group element) can be simulated by $\adversary{A}_2$. Hence, we have:
         \begin{align*}
             \advtg_\adversary{A}^{\mathsf{G2}} = \advtg_\adversary{A}^{\mathsf{G3}} 
         \end{align*}
@@ -590,7 +592,7 @@ See Fig. \ref{prot:construction_simple}.
     \procedure[linenumbering]{$\mathsf{G6}(\adversary{A, D})$}{
         \pseudo^* \sample \mathcal{D}\\
         \pk_\idm, \mathsf{st}, \login^* \gets \adversary{A}_1(\secparam)\\
-        \pcbox{s_\idm^* \sample \ZZ_q}\\
+        \pcbox{s_\idm^* \sample \ZZ_p^*}\\
         \pcbox{\agentsecret \gets (s_\idm^*)^{-1}}\\
         \adversary{A}_2^{oracles}(\mathsf{s_\idm^*, st}) \rightarrow  att^*, \consent^*\\
         \pcfor (\pseudo, att) \in H.\mathsf{queried}\\
@@ -722,22 +724,29 @@ See Fig. \ref{prot:construction_simple}.
 
     \begin{figure*}
 \begin{pchstack}[center, space=0.2cm, boxed]
-    \begin{pcvstack}
-    \procedure[linenumbering]{$\adversary{A}$}{
-        \textsf{pick } \login^*, \login\\
-        \agentsecret^* \gets \mathsf{OEnroll}(\login^*, \pseudo^*)\\
-        \agentsecret \sample \ZZ_q\\
+    \procedure[linenumbering]{$\adversary{A}_1$}{
+        \textsf{pick } \login^*, \pseudo^*, att^*, \login\\
+        \mathsf{OEnroll}(\login^*, \pseudo^*) \rightarrow \agentsecret^* \\
+        \agentsecret \sample \ZZ_p^*\\
         \mathsf{OCorruptEnroll}(\login, \agentsecret^{-1})\\
-        r \sample \ZZ_q\\
-        att^* \sample \ZZ_q\\
+        r \sample \ZZ_p^*\\
         \query \gets r\cdot H(\pseudo^*, att^*)\\
-        \response \gets \mathsf{OCorruptCommit}(\login, \query)\\
+        \mathsf{OCorruptCommit}(\login, \query) \rightarrow \response\\
         \consent^* \gets r^{-1}\cdot\agentsecret\cdot\response\\
         \pcreturn \login^*, \pseudo^*, att^*, \consent^*
     }
-    \end{pcvstack}
-    \end{pchstack}
-\caption{\adversary{A} attacking the $\cuf_\signserv$ game.}
+    \procedure[linenumbering]{$\adversary{A}_2$}{
+        \textsf{pick } \login^*, \pseudo^*, att^*, \login, s_\idm\\
+        \mathsf{OEnroll}(\login^*, \pseudo^*) \rightarrow \agentsecret^*\\
+        \mathsf{OCorruptEnroll}(\login, s_\idm)\\
+        r \sample \ZZ_p^*\\
+        \query \gets r\cdot H(\pseudo^*, att^*)\\
+        \mathsf{OCorruptCommit}(\login, \query) \rightarrow \response\\
+        \consent^* \gets (r\cdot s_\idm)^{-1}\cdot \response\\
+        \pcreturn \login^*, \pseudo^*, att^*, \consent^*
+    }
+\end{pchstack}
+\caption{$\adversary{A}_1$ and $\adversary{A}_2$ attacking the $\cuf_\signserv$ game.}
 \label{game:cuf_agent_attack}
 \end{figure*}
 \end{proof}
