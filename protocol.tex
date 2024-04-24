@@ -151,6 +151,8 @@ We say that a \primitive is secure under $\cuf_\idm$ if for any $\ppt$ adversary
 \end{figure*}
 \end{definition}
 
+In this security notion, the adversary controls $\idm$. The victim client is enrolled using $\mathsf{OEnroll}$ and can issue consents using $\mathsf{OLaunch}$ and $\mathsf{OCommit}$. This ``normal'' issuance protocol does not return the consent to the adversary as they are legitimate consents. Other clients can be assumed to be corrupted by default and be enrolled with  $\mathsf{OCurruptEnroll}$. They can cast orders using $\mathsf{OOrder}$ which returns the consent.
+
 \begin{definition}[Consent Unforgeability with corrupted $\signserv$]
     A \primitive scheme is unforgeable against a corrupted $\signserv$ if for any $\ppt$ adversary \adversary{A}, we have
 
