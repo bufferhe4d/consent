@@ -5,7 +5,9 @@
 
 **Note: This is an academic prototype and is not ready to be used in production.**
 
-The results of this benchmark is used to Produce Table 4 of our paper.
+The results of this benchmark is used to Produce Table 1 of our paper.
+
+
 To run the benchmarks:
 ```
 cargo bench
