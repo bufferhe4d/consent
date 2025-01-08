@@ -10,5 +10,6 @@ The results of this benchmark is used to Produce Table 1 of our paper.
 
 To run the benchmarks:
 ```
+cd protocol_prototype
 cargo bench
 ```
