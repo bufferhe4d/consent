@@ -5,7 +5,7 @@
 
 **Note: This is an academic prototype and is not ready to be used in production.**
 
-The results of this benchmark is used to Produce Table 1 of our paper.
+The results of this benchmark is used to Produce Table 1 of our paper: https://eprint.iacr.org/2024/1839
 
 
 To run the benchmarks:
